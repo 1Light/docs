@@ -1,7 +1,7 @@
 // apps/api/src/modules/ai/aiPolicyService.ts
 
-import { ERROR_CODES } from "@repo/contracts/src/constants/errorCodes";
-import type { DocumentRole } from "@repo/contracts/src/constants/roles";
+import { ERROR_CODES } from "@repo/contracts";
+import type { DocumentRole } from "@repo/contracts";
 import { aiJobRepo } from "./aiJobRepo";
 
 type QuotaPolicy = {

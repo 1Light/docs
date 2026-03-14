@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import crypto from "node:crypto";
 import { InviteStatus, OrgRole } from "@prisma/client";
-import { ERROR_CODES } from "@repo/contracts/src/constants/errorCodes";
+import { ERROR_CODES } from "@repo/contracts";
 import { aiPolicyService } from "../ai/aiPolicyService";
 import { auditLogService } from "../audit/auditLogService";
 import { emailService } from "../../integrations/emailService";

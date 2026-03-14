@@ -8,7 +8,7 @@ import { validateRequest } from "../../middleware/validateRequest";
 import {
   createCommentRequestSchema,
   updateCommentRequestSchema,
-} from "@repo/contracts/src/schemas/commentSchemas";
+} from "@repo/contracts";
 
 // mergeParams is required so req.params.id from /documents/:id/comments is available here
 const router = Router({ mergeParams: true });

@@ -9,7 +9,7 @@ import { userRepo } from "./userRepo";
 import { prisma } from "../../lib/prisma";
 import { config } from "../../config/env";
 import { auditLogService } from "../audit/auditLogService";
-import { ERROR_CODES } from "@repo/contracts/src/constants/errorCodes";
+import { ERROR_CODES } from "@repo/contracts";
 
 type AppOrgRole = "OrgAdmin" | "OrgOwner";
 

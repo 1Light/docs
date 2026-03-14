@@ -9,7 +9,7 @@ import {
   updateAIPolicyRequestSchema,
   auditLogQuerySchema,
   auditLogExportQuerySchema,
-} from "@repo/contracts/src/schemas/adminSchemas";
+} from "@repo/contracts";
 
 const router = Router();
 

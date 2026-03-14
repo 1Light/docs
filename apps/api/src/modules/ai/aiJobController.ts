@@ -1,7 +1,7 @@
 // apps/api/src/modules/ai/aiJobController.ts
 
 import type { Request, Response, NextFunction } from "express";
-import { ERROR_CODES } from "@repo/contracts/src/constants/errorCodes";
+import { ERROR_CODES } from "@repo/contracts";
 import { aiJobService } from "./aiJobService";
 import { permissionService } from "../permissions/permissionService";
 import { config } from "../../config/env";

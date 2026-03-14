@@ -14,7 +14,7 @@ import {
   createDocumentRequestSchema,
   updateDocumentRequestSchema,
   exportDocumentRequestSchema,
-} from "@repo/contracts/src/schemas/documentSchemas";
+} from "@repo/contracts";
 
 const router = Router();
 

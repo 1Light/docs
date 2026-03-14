@@ -1,7 +1,7 @@
 // apps/api/src/modules/auth/userRepo.ts
 
 import { prisma } from "../../lib/prisma";
-import type { OrgRole } from "@repo/contracts/src/constants/roles";
+import type { OrgRole } from "@repo/contracts";
 
 export const userRepo = {
   async findById(id: string) {

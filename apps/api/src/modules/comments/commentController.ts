@@ -1,7 +1,7 @@
 // apps/api/src/modules/comments/commentController.ts
 
 import type { Request, Response, NextFunction } from "express";
-import { ERROR_CODES } from "@repo/contracts/src/constants/errorCodes";
+import { ERROR_CODES } from "@repo/contracts";
 import { commentService } from "./commentService";
 import { realtimeNotifyService } from "../../integrations/realtimeNotifyService";
 

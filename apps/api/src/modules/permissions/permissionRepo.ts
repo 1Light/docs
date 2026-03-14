@@ -1,7 +1,7 @@
 // apps/api/src/modules/permissions/permissionRepo.ts
 
 import { prisma } from "../../lib/prisma";
-import type { DocumentRole } from "@repo/contracts/src/constants/roles";
+import type { DocumentRole } from "@repo/contracts";
 
 export type PrincipalType = "user" | "link";
 

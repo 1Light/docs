@@ -9,7 +9,7 @@ import { validateRequest } from "../../middleware/validateRequest";
 import {
   createAIJobRequestSchema,
   applyAIJobRequestSchema,
-} from "@repo/contracts/src/schemas/aiSchemas";
+} from "@repo/contracts";
 
 const router = Router();
 

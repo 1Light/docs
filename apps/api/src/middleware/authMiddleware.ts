@@ -3,7 +3,7 @@ import jwt from "jsonwebtoken";
 import { prisma } from "../lib/prisma";
 import { config } from "../config/env";
 import { ERROR_CODES } from "@repo/contracts";
-import type { OrgRole } from "@repo/contracts/src/constants/roles";
+import type { OrgRole } from "@repo/contracts";
 
 type JwtPayload = {
   userId: string;

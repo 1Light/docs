@@ -1,6 +1,6 @@
 // apps/api/src/modules/versions/versionService.ts
 
-import { ERROR_CODES } from "@repo/contracts/src/constants/errorCodes";
+import { ERROR_CODES } from "@repo/contracts";
 import { documentRepo } from "../documents/documentRepo";
 import { versionRepo } from "./versionRepo";
 import { auditLogService } from "../audit/auditLogService";

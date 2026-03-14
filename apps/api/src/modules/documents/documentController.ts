@@ -2,8 +2,8 @@
 
 import type { Request, Response, NextFunction } from "express";
 import crypto from "node:crypto";
-import { ERROR_CODES } from "@repo/contracts/src/constants/errorCodes";
-import type { DocumentRole } from "@repo/contracts/src/constants/roles";
+import { ERROR_CODES } from "@repo/contracts";
+import type { DocumentRole } from "@repo/contracts";
 import { prisma } from "../../lib/prisma";
 import { documentService } from "./documentService";
 import { exportService } from "./exportService";

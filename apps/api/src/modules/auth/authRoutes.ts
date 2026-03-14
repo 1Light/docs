@@ -10,7 +10,7 @@ import {
   inviteSignupRequestSchema,
   ownerSignupRequestSchema,
   createOrganizationRequestSchema,
-} from "@repo/contracts/src/schemas/authSchemas";
+} from "@repo/contracts";
 
 const router = Router();
 

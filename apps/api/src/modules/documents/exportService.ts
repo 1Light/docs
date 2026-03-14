@@ -6,7 +6,7 @@ import crypto from "node:crypto";
 import HtmlToDocx from "@turbodocx/html-to-docx";
 import htmlPdf from "html-pdf-node";
 
-import { ERROR_CODES } from "@repo/contracts/src/constants/errorCodes";
+import { ERROR_CODES } from "@repo/contracts";
 import { documentRepo } from "./documentRepo";
 
 const EXPORT_DIR = process.env.EXPORT_DIR || path.join(process.cwd(), "exports");

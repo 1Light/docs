@@ -1,7 +1,7 @@
 // apps/api/src/middleware/orgAdminMiddleware.ts
 
 import type { Request, Response, NextFunction } from "express";
-import { ERROR_CODES } from "@repo/contracts/src/constants/errorCodes";
+import { ERROR_CODES } from "@repo/contracts";
 
 /**
  * Requires authMiddleware to have already run.

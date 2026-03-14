@@ -1,7 +1,7 @@
 // apps/api/src/modules/versions/versionController.ts
 
 import type { Request, Response, NextFunction } from "express";
-import { ERROR_CODES } from "@repo/contracts/src/constants/errorCodes";
+import { ERROR_CODES } from "@repo/contracts";
 
 import { permissionService } from "../permissions/permissionService";
 import { versionService } from "./versionService";

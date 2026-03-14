@@ -1,6 +1,6 @@
 // apps/api/src/modules/permissions/permissionService.ts
 
-import type { DocumentRole } from "@repo/contracts/src/constants/roles";
+import type { DocumentRole } from "@repo/contracts";
 import { documentRepo } from "../documents/documentRepo";
 import { permissionRepo } from "./permissionRepo";
 import { userRepo } from "../auth/userRepo";

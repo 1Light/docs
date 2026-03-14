@@ -1,8 +1,8 @@
 // apps/api/src/modules/ai/aiJobService.ts
 
-import { ERROR_CODES } from "@repo/contracts/src/constants/errorCodes";
-import type { AIOperation } from "@repo/contracts/src/types/dtos";
-import type { DocumentRole } from "@repo/contracts/src/constants/roles";
+import { ERROR_CODES } from "@repo/contracts";
+import type { AIOperation } from "@repo/contracts";
+import type { DocumentRole } from "@repo/contracts";
 
 import { config } from "../../config/env";
 import { documentRepo } from "../documents/documentRepo";

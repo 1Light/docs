@@ -1,7 +1,7 @@
 // apps/ai-service/src/modules/jobs/jobController.ts
 
 import type { Request, Response, NextFunction } from "express";
-import { ERROR_CODES } from "@repo/contracts/src/constants/errorCodes";
+import { ERROR_CODES } from "@repo/contracts";
 import { runJob } from "./runJob";
 
 function apiError(code: (typeof ERROR_CODES)[keyof typeof ERROR_CODES], message: string, details?: unknown) {

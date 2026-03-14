@@ -1,8 +1,8 @@
 // apps/api/src/middleware/docRoleMiddleware.ts
 
 import type { Request, Response, NextFunction, RequestHandler } from "express";
-import { ERROR_CODES } from "@repo/contracts/src/constants/errorCodes";
-import type { DocumentRole } from "@repo/contracts/src/constants/roles";
+import { ERROR_CODES } from "@repo/contracts";
+import type { DocumentRole } from "@repo/contracts";
 import { permissionService } from "../modules/permissions/permissionService";
 import { documentRepo } from "../modules/documents/documentRepo";
 

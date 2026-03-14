@@ -1,8 +1,8 @@
 // apps/api/src/modules/comments/commentService.ts
 
 import { CommentStatus } from "@prisma/client";
-import { ERROR_CODES } from "@repo/contracts/src/constants/errorCodes";
-import type { DocumentRole } from "@repo/contracts/src/constants/roles";
+import { ERROR_CODES } from "@repo/contracts";
+import type { DocumentRole } from "@repo/contracts";
 import { commentRepo } from "./commentRepo";
 import { documentRepo } from "../documents/documentRepo";
 import { permissionService } from "../permissions/permissionService";

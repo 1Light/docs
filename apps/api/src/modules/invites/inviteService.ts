@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 import { prisma } from "../../lib/prisma";
 import { documentInviteRepo } from "../documents/documentInviteRepo";
 import type { DocumentRole, InviteStatus } from "@prisma/client";
-import { ERROR_CODES } from "@repo/contracts/src/constants/errorCodes";
+import { ERROR_CODES } from "@repo/contracts";
 import { emailService } from "../../integrations/emailService";
 import { config } from "../../config/env";
 

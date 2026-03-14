@@ -3,8 +3,8 @@
 import type { Request, Response, NextFunction } from "express";
 import { ZodError } from "zod";
 import { Prisma } from "@prisma/client";
-import { ERROR_CODES, type ApiError as SharedApiError } from "@repo/contracts/src/constants/errorCodes";
-import { ApiError as ApiErrorDTO } from "@repo/contracts/src/constants/errorCodes";
+import { ERROR_CODES, type ApiError as SharedApiError } from "@repo/contracts";
+import { ApiError as ApiErrorDTO } from "@repo/contracts";
 // If your monorepo exposes packages/shared as "@repo/contracts", keep that.
 // Otherwise adjust imports (e.g. "../../packages/contracts/src/constants/errorCodes").
 

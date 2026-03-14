@@ -3,7 +3,7 @@
 import express from "express";
 import helmet from "helmet";
 import morgan from "morgan";
-import { ERROR_CODES } from "@repo/contracts/src/constants/errorCodes";
+import { ERROR_CODES } from "@repo/contracts";
 
 import jobRoutes from "./modules/jobs/jobRoutes";
 import { config } from "./config/env";

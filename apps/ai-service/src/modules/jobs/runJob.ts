@@ -1,6 +1,6 @@
 // apps/ai-service/src/modules/jobs/runJob.ts
 
-import { ERROR_CODES } from "@repo/contracts/src/constants/errorCodes";
+import { ERROR_CODES } from "@repo/contracts";
 import type { LLMOperation, LLMProvider } from "../../providers/llmProvider";
 import { MockProvider } from "../../providers/mockProvider";
 import { GeminiProvider } from "../../providers/geminiProvider";

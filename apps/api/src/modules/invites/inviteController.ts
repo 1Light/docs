@@ -3,10 +3,10 @@
 import type { Request, Response, NextFunction } from "express";
 import crypto from "node:crypto";
 import { prisma } from "../../lib/prisma";
-import { ERROR_CODES } from "@repo/contracts/src/constants/errorCodes";
+import { ERROR_CODES } from "@repo/contracts";
 import { emailService } from "../../integrations/emailService";
 import { auditLogService } from "../audit/auditLogService";
-import type { DocumentRole } from "@repo/contracts/src/constants/roles";
+import type { DocumentRole } from "@repo/contracts";
 import { inviteService } from "./inviteService";
 import { documentInviteRepo } from "../documents/documentInviteRepo";
 
