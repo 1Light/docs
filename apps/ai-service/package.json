@@ -1,0 +1,33 @@
+{
+  "name": "@repo/ai-service",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "dotenv -e .env -- ts-node-dev --respawn --transpile-only src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo \"(optional) add eslint later\"",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@google/genai": "^1.45.0",
+    "@repo/contracts": "workspace:*",
+    "express": "^4.19.2",
+    "helmet": "^8.1.0",
+    "morgan": "^1.10.1",
+    "openai": "^4.60.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/morgan": "^1.9.10",
+    "@types/node": "^22.19.15",
+    "dotenv-cli": "^11.0.0",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.9.3",
+    "vitest": "^2.0.5"
+  }
+}
