@@ -16,18 +16,22 @@ export class MockProvider implements LLMProvider {
     const promptHint = params.prompt ? " [prompt:yes]" : " [prompt:no]";
 
     switch (params.operation) {
-      case "summarize":
+      case "summarize": {
+        const summaryStyle = params.parameters?.summaryStyle ?? "short_paragraph";
         return {
           result:
             base.trim().length === 0
               ? "(empty selection)"
-              : `Summary${promptHint}: ${base.length > 120 ? `${base.slice(0, 117)}...` : base}`,
+              : `Summarize${promptHint} style=${summaryStyle}: ${
+                  base.length > 120 ? `${base.slice(0, 117)}...` : base
+                }`,
         };
+      }
 
-      case "rewrite": {
-        const tone = params.parameters?.tone ? ` tone=${params.parameters.tone}` : "";
+      case "enhance": {
+        const style = params.parameters?.style ? ` style=${params.parameters.style}` : "";
         return {
-          result: `Rewrite${promptHint}${tone}: ${base}`.trim(),
+          result: `Enhance${promptHint}${style}: ${base}`.trim(),
         };
       }
 
@@ -39,9 +43,9 @@ export class MockProvider implements LLMProvider {
       }
 
       case "reformat": {
-        const style = params.parameters?.formatStyle ?? "default";
+        const formatStyle = params.parameters?.formatStyle ?? "default";
         return {
-          result: `Reformat${promptHint} style=${style}: ${base}`.trim(),
+          result: `Reformat${promptHint} style=${formatStyle}: ${base}`.trim(),
         };
       }
 

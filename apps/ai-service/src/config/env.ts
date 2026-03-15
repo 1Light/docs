@@ -2,23 +2,11 @@
 
 import { z } from "zod";
 
-/**
- * Environment configuration for AI Service
- * Validates required variables at boot time.
- */
-
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-
   PORT: z.coerce.number().int().positive().default(4002),
-
-  // Provider selection
   LLM_PROVIDER: z.enum(["gemini", "mock"]).default("mock"),
-
-  // API key (required for gemini)
   LLM_API_KEY: z.string().optional(),
-
-  // Optional model name (recommended to set explicitly in env)
   LLM_MODEL: z.string().optional(),
 });
 
@@ -49,11 +37,7 @@ const loaded = loadEnv();
 
 export const config = {
   ...loaded,
-
-  // Sensible model defaults: pick one that supports generateContent on the used API version
   LLM_MODEL:
     loaded.LLM_MODEL ??
-    (loaded.LLM_PROVIDER === "gemini"
-      ? "gemini-2.0-flash"
-      : undefined),
+    (loaded.LLM_PROVIDER === "gemini" ? "gemini-2.0-flash" : undefined),
 };

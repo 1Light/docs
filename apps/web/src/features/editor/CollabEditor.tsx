@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useEditor, EditorContent, type Editor as TiptapEditor } from "@tiptap/react";
 
 import "prosemirror-view/style/prosemirror.css";
@@ -14,7 +14,37 @@ type Props = {
   onSelectionChange: (sel: { start: number; end: number; text: string }) => void;
 };
 
+function getPlainTextSelection(editor: TiptapEditor): {
+  start: number;
+  end: number;
+  text: string;
+} {
+  const { from, to } = editor.state.selection;
+  const doc = editor.state.doc;
+
+  const start = doc.textBetween(0, from, "\n", "\n").length;
+  const end = doc.textBetween(0, to, "\n", "\n").length;
+  const text = doc.textBetween(from, to, "\n", "\n");
+
+  return { start, end, text };
+}
+
 export function CollabEditor(props: Props) {
+  const notifySelectionFrameRef = useRef<number | null>(null);
+
+  function emitSelectionChange(editor: TiptapEditor) {
+    const next = getPlainTextSelection(editor);
+
+    if (notifySelectionFrameRef.current != null) {
+      cancelAnimationFrame(notifySelectionFrameRef.current);
+    }
+
+    notifySelectionFrameRef.current = requestAnimationFrame(() => {
+      props.onSelectionChange(next);
+      notifySelectionFrameRef.current = null;
+    });
+  }
+
   const editor = useEditor({
     extensions: props.extensions,
     content: "",
@@ -35,14 +65,10 @@ export function CollabEditor(props: Props) {
       },
     },
     onSelectionUpdate(ctx) {
-      const { from, to } = ctx.editor.state.selection;
-      const text = ctx.editor.state.doc.textBetween(from, to, "\n");
-      props.onSelectionChange({ start: from, end: to, text });
+      emitSelectionChange(ctx.editor);
     },
     onTransaction(ctx) {
-      const { from, to } = ctx.editor.state.selection;
-      const text = ctx.editor.state.doc.textBetween(from, to, "\n");
-      props.onSelectionChange({ start: from, end: to, text });
+      emitSelectionChange(ctx.editor);
     },
   });
 
@@ -56,6 +82,14 @@ export function CollabEditor(props: Props) {
     if (!editor) return;
     editor.setEditable(canEdit(props.docRole) && props.isConnected && !props.loading);
   }, [editor, props.docRole, props.isConnected, props.loading]);
+
+  useEffect(() => {
+    return () => {
+      if (notifySelectionFrameRef.current != null) {
+        cancelAnimationFrame(notifySelectionFrameRef.current);
+      }
+    };
+  }, []);
 
   if (!editor) {
     return (

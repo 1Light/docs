@@ -23,21 +23,26 @@ function assertAuth(req: Request) {
 
 function isValidOperation(
   op: any
-): op is "rewrite" | "summarize" | "translate" | "reformat" {
+): op is "enhance" | "summarize" | "translate" | "reformat" {
   return (
-    op === "rewrite" || op === "summarize" || op === "translate" || op === "reformat"
+    op === "enhance" ||
+    op === "summarize" ||
+    op === "translate" ||
+    op === "reformat"
   );
 }
 
-function normalizeSelection(sel: any): { start: number; end: number } {
+function normalizeSelection(sel: any): { start: number; end: number; text: string } {
   const start = Number(sel?.start);
   const end = Number(sel?.end);
+  const text = typeof sel?.text === "string" ? sel.text : "";
 
   if (!Number.isFinite(start) || !Number.isFinite(end)) {
     throw apiError(ERROR_CODES.INVALID_REQUEST, "Invalid selection range", {
       reason: "start/end must be numbers",
     });
   }
+
   if (start < 0 || end < 0 || end <= start) {
     throw apiError(ERROR_CODES.INVALID_REQUEST, "Invalid selection range", {
       reason: "end must be > start and both must be >= 0",
@@ -54,20 +59,63 @@ function normalizeSelection(sel: any): { start: number; end: number } {
     );
   }
 
-  return { start, end };
+  if (text.length === 0) {
+    throw apiError(ERROR_CODES.INVALID_REQUEST, "selection.text is required");
+  }
+
+  return { start, end, text };
+}
+
+function normalizeParameters(parameters: any, operation: "enhance" | "summarize" | "translate" | "reformat") {
+  const raw = parameters && typeof parameters === "object" ? parameters : {};
+
+  const out: {
+    style?: string;
+    summaryStyle?: string;
+    language?: string;
+    formatStyle?: string;
+    applyMode?: "replace" | "insert_below";
+  } = {};
+
+  if (typeof raw.style === "string" && raw.style.trim()) {
+    out.style = raw.style.trim();
+  }
+
+  if (typeof raw.summaryStyle === "string" && raw.summaryStyle.trim()) {
+    out.summaryStyle = raw.summaryStyle.trim();
+  }
+
+  if (typeof raw.language === "string" && raw.language.trim()) {
+    out.language = raw.language.trim();
+  }
+
+  if (typeof raw.formatStyle === "string" && raw.formatStyle.trim()) {
+    out.formatStyle = raw.formatStyle.trim();
+  }
+
+  if (raw.applyMode === "replace" || raw.applyMode === "insert_below") {
+    out.applyMode = raw.applyMode;
+  }
+
+  if (operation === "translate" && !out.language) {
+    throw apiError(ERROR_CODES.INVALID_REQUEST, "language is required for translate");
+  }
+
+  if (operation === "reformat" && !out.formatStyle) {
+    throw apiError(ERROR_CODES.INVALID_REQUEST, "formatStyle is required for reformat");
+  }
+
+  return out;
 }
 
 function toJobError(job: { errorMessage?: string | null }) {
   if (!job.errorMessage) return undefined;
 
-  // In development, include full error message. In prod, keep it terse.
   const dev = config.NODE_ENV === "development";
 
-  // Heuristic: if message already contains useful context, expose it in details for debugging.
-  // The shared API error shape supports `details`.
   return {
     code: ERROR_CODES.AI_PROVIDER_UNAVAILABLE,
-    message: dev ? "AI provider unavailable" : "AI provider unavailable",
+    message: "AI provider unavailable",
     ...(dev ? { details: { providerMessage: job.errorMessage } } : {}),
   };
 }
@@ -91,11 +139,13 @@ export const aiJobController = {
       if (!documentId || typeof documentId !== "string") {
         throw apiError(ERROR_CODES.INVALID_REQUEST, "documentId is required");
       }
+
       if (!isValidOperation(operation)) {
         throw apiError(ERROR_CODES.INVALID_REQUEST, "Invalid operation");
       }
 
       const normalizedSelection = normalizeSelection(selection);
+      const normalizedParameters = normalizeParameters(parameters, operation);
 
       const role = await permissionService.resolveEffectiveRole({
         documentId,
@@ -111,7 +161,7 @@ export const aiJobController = {
         requesterId: user.id,
         operation,
         selection: normalizedSelection,
-        parameters: (parameters ?? undefined) as any,
+        parameters: normalizedParameters,
       });
 
       return res.status(201).json({

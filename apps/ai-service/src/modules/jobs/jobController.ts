@@ -4,12 +4,58 @@ import type { Request, Response, NextFunction } from "express";
 import { ERROR_CODES } from "@repo/contracts";
 import { runJob } from "./runJob";
 
-function apiError(code: (typeof ERROR_CODES)[keyof typeof ERROR_CODES], message: string, details?: unknown) {
+function apiError(
+  code: (typeof ERROR_CODES)[keyof typeof ERROR_CODES],
+  message: string,
+  details?: unknown
+) {
   return { code, message, ...(details !== undefined ? { details } : {}) };
 }
 
-function isValidOperation(op: any): op is "rewrite" | "summarize" | "translate" | "reformat" {
-  return op === "rewrite" || op === "summarize" || op === "translate" || op === "reformat";
+function isValidOperation(
+  op: any
+): op is "enhance" | "summarize" | "translate" | "reformat" {
+  return (
+    op === "enhance" ||
+    op === "summarize" ||
+    op === "translate" ||
+    op === "reformat"
+  );
+}
+
+function normalizeParameters(parameters: unknown) {
+  const raw = parameters && typeof parameters === "object" ? parameters : {};
+
+  const out: {
+    style?: string;
+    summaryStyle?: string;
+    language?: string;
+    formatStyle?: string;
+  } = {};
+
+  if (typeof (raw as any).style === "string" && (raw as any).style.trim()) {
+    out.style = (raw as any).style.trim();
+  }
+
+  if (
+    typeof (raw as any).summaryStyle === "string" &&
+    (raw as any).summaryStyle.trim()
+  ) {
+    out.summaryStyle = (raw as any).summaryStyle.trim();
+  }
+
+  if (typeof (raw as any).language === "string" && (raw as any).language.trim()) {
+    out.language = (raw as any).language.trim();
+  }
+
+  if (
+    typeof (raw as any).formatStyle === "string" &&
+    (raw as any).formatStyle.trim()
+  ) {
+    out.formatStyle = (raw as any).formatStyle.trim();
+  }
+
+  return out;
 }
 
 export const jobController = {
@@ -30,9 +76,11 @@ export const jobController = {
       if (!jobId || typeof jobId !== "string") {
         throw apiError(ERROR_CODES.INVALID_REQUEST, "jobId is required");
       }
+
       if (!isValidOperation(operation)) {
         throw apiError(ERROR_CODES.INVALID_REQUEST, "Invalid operation");
       }
+
       if (typeof selectedText !== "string") {
         throw apiError(ERROR_CODES.INVALID_REQUEST, "selectedText is required");
       }
@@ -42,17 +90,29 @@ export const jobController = {
         throw apiError(ERROR_CODES.INVALID_REQUEST, "selectedText is empty");
       }
 
-      // Safety cap (prevents runaway requests)
       const MAX_SELECTED = 20_000;
       if (selectedText.length > MAX_SELECTED) {
-        throw apiError(ERROR_CODES.INVALID_REQUEST, `selectedText too large (max ${MAX_SELECTED} chars)`);
+        throw apiError(
+          ERROR_CODES.INVALID_REQUEST,
+          `selectedText too large (max ${MAX_SELECTED} chars)`
+        );
+      }
+
+      const normalizedParameters = normalizeParameters(parameters);
+
+      if (operation === "translate" && !normalizedParameters.language) {
+        throw apiError(ERROR_CODES.INVALID_REQUEST, "language is required for translate");
+      }
+
+      if (operation === "reformat" && !normalizedParameters.formatStyle) {
+        throw apiError(ERROR_CODES.INVALID_REQUEST, "formatStyle is required for reformat");
       }
 
       const out = await runJob({
         jobId,
         operation,
         selectedText,
-        parameters: (parameters ?? undefined) as any,
+        parameters: normalizedParameters,
       });
 
       if (!out?.result || typeof out.result !== "string") {
@@ -61,12 +121,15 @@ export const jobController = {
 
       return res.json({ result: out.result });
     } catch (err: any) {
-      // If provider/runJob threw a structured ApiError, pass through.
-      if (err && typeof err === "object" && typeof err.code === "string" && typeof err.message === "string") {
+      if (
+        err &&
+        typeof err === "object" &&
+        typeof err.code === "string" &&
+        typeof err.message === "string"
+      ) {
         return next(err);
       }
 
-      // Otherwise normalize to a provider-unavailable error to keep API contract stable.
       return next(
         apiError(ERROR_CODES.AI_PROVIDER_UNAVAILABLE, "AI provider unavailable", {
           originalMessage: err?.message ?? String(err),

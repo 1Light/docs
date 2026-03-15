@@ -8,22 +8,28 @@ function fallbackPrompt(params: LLMRunParams): string {
   const { operation, selectedText, parameters } = params;
 
   switch (operation) {
-    case "summarize":
-      return `Summarize the following text:\n\n${selectedText}`;
+    case "summarize": {
+      const summaryStyle =
+        parameters?.summaryStyle === "bullet_points"
+          ? "in 3 bullet points"
+          : "as a short paragraph";
 
-    case "rewrite": {
-      const tone = parameters?.tone ? ` in a ${parameters.tone} tone` : "";
-      return `Rewrite the following text${tone}:\n\n${selectedText}`;
+      return `Summarize the following text ${summaryStyle}. Do not add new information:\n\n${selectedText}`;
+    }
+
+    case "enhance": {
+      const style = parameters?.style ? ` in a ${parameters.style} style` : "";
+      return `Improve the writing quality of the following text${style}. Preserve meaning and do not add new information:\n\n${selectedText}`;
     }
 
     case "translate": {
       const language = parameters?.language ?? "English";
-      return `Translate the following text to ${language}:\n\n${selectedText}`;
+      return `Translate the following text to ${language}. Preserve meaning and formatting where possible:\n\n${selectedText}`;
     }
 
     case "reformat": {
-      const style = parameters?.formatStyle ?? "a clean format";
-      return `Reformat the following text into ${style}:\n\n${selectedText}`;
+      const formatStyle = parameters?.formatStyle ?? "a clean structured format";
+      return `Reformat the following text into ${formatStyle}. Preserve meaning and do not add new information:\n\n${selectedText}`;
     }
 
     default:
@@ -42,13 +48,12 @@ export class GeminiProvider implements LLMProvider {
       throw new Error("LLM_API_KEY not configured");
     }
 
-    // NEVER default to 1.5-flash here.
-    // Prefer env/config, otherwise use a safer default.
     const model = normalizeModelName(config.LLM_MODEL ?? "gemini-2.0-flash");
 
-    const prompt = (params.prompt && params.prompt.trim().length > 0
-      ? params.prompt
-      : fallbackPrompt(params)
+    const prompt = (
+      params.prompt && params.prompt.trim().length > 0
+        ? params.prompt
+        : fallbackPrompt(params)
     ).trim();
 
     const ai = new GoogleGenAI({ apiKey: config.LLM_API_KEY });

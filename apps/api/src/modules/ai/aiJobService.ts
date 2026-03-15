@@ -15,12 +15,20 @@ import { auditLogService } from "../audit/auditLogService";
 
 import { AIJobStatus, AIOperation as PrismaAIOperation } from "@prisma/client";
 
+type ApplyMode = "replace" | "insert_below";
+
 type CreateJobParams = {
   documentId: string;
   requesterId: string;
   operation: AIOperation;
-  selection: { start: number; end: number };
-  parameters?: { tone?: string; language?: string; formatStyle?: string };
+  selection: { start: number; end: number; text: string };
+  parameters?: {
+    style?: string;
+    summaryStyle?: string;
+    language?: string;
+    formatStyle?: string;
+    applyMode?: ApplyMode;
+  };
 };
 
 type ApplyJobParams = {
@@ -29,7 +37,11 @@ type ApplyJobParams = {
   finalText: string;
 };
 
-function apiError(code: (typeof ERROR_CODES)[keyof typeof ERROR_CODES], message: string, details?: unknown) {
+function apiError(
+  code: (typeof ERROR_CODES)[keyof typeof ERROR_CODES],
+  message: string,
+  details?: unknown
+) {
   return { code, message, ...(details !== undefined ? { details } : {}) };
 }
 
@@ -70,13 +82,47 @@ async function callAIServiceRunJob(payload: {
   return { result: data.result };
 }
 
-function normalizeSelection(selection: { start: number; end: number }, contentLength: number) {
+function normalizeRequestedSelection(selection: {
+  start: number;
+  end: number;
+  text: string;
+}) {
   const start = Number(selection?.start);
   const end = Number(selection?.end);
+  const text = typeof selection?.text === "string" ? selection.text : "";
 
   if (!Number.isFinite(start) || !Number.isFinite(end)) {
     throw apiError(ERROR_CODES.INVALID_REQUEST, "Invalid selection range");
   }
+
+  if (start < 0 || end < 0 || end <= start) {
+    throw apiError(ERROR_CODES.INVALID_REQUEST, "Invalid selection range");
+  }
+
+  const MAX_LEN = 20_000;
+  if (text.length > MAX_LEN) {
+    throw apiError(ERROR_CODES.INVALID_REQUEST, `Selection too large (max ${MAX_LEN} chars)`);
+  }
+
+  if (!text.trim()) {
+    throw apiError(ERROR_CODES.INVALID_REQUEST, "selection.text is required");
+  }
+
+  return { start, end, text };
+}
+
+function normalizePersistedSelection(
+  selection: { start: number; end: number; text: string },
+  contentLength: number
+) {
+  const start = Number(selection?.start);
+  const end = Number(selection?.end);
+  const text = typeof selection?.text === "string" ? selection.text : "";
+
+  if (!Number.isFinite(start) || !Number.isFinite(end)) {
+    throw apiError(ERROR_CODES.INVALID_REQUEST, "Invalid selection range");
+  }
+
   if (start < 0 || end < 0 || end <= start) {
     throw apiError(ERROR_CODES.INVALID_REQUEST, "Invalid selection range");
   }
@@ -88,19 +134,98 @@ function normalizeSelection(selection: { start: number; end: number }, contentLe
     throw apiError(ERROR_CODES.INVALID_REQUEST, "Selection is out of bounds");
   }
 
-  const MAX_LEN = 20000;
+  const MAX_LEN = 20_000;
   const len = safeEnd - safeStart;
   if (len > MAX_LEN) {
     throw apiError(ERROR_CODES.INVALID_REQUEST, `Selection too large (max ${MAX_LEN} chars)`);
   }
 
-  return { start: safeStart, end: safeEnd };
+  if (!text.trim()) {
+    throw apiError(ERROR_CODES.INVALID_REQUEST, "selection.text is required");
+  }
+
+  return { start: safeStart, end: safeEnd, text };
+}
+
+function normalizeParameters(
+  operation: AIOperation,
+  parameters?: {
+    style?: string;
+    summaryStyle?: string;
+    language?: string;
+    formatStyle?: string;
+    applyMode?: ApplyMode;
+  }
+) {
+  const out: {
+    style?: string;
+    summaryStyle?: string;
+    language?: string;
+    formatStyle?: string;
+    applyMode: ApplyMode;
+  } = {
+    applyMode: operation === "summarize" ? "insert_below" : "replace",
+  };
+
+  if (parameters?.style?.trim()) {
+    out.style = parameters.style.trim();
+  }
+
+  if (parameters?.summaryStyle?.trim()) {
+    out.summaryStyle = parameters.summaryStyle.trim();
+  }
+
+  if (parameters?.language?.trim()) {
+    out.language = parameters.language.trim();
+  }
+
+  if (parameters?.formatStyle?.trim()) {
+    out.formatStyle = parameters.formatStyle.trim();
+  }
+
+  if (parameters?.applyMode === "replace" || parameters?.applyMode === "insert_below") {
+    out.applyMode = parameters.applyMode;
+  }
+
+  if (operation === "translate" && !out.language) {
+    throw apiError(ERROR_CODES.INVALID_REQUEST, "language is required for translate");
+  }
+
+  if (operation === "reformat" && !out.formatStyle) {
+    throw apiError(ERROR_CODES.INVALID_REQUEST, "formatStyle is required for reformat");
+  }
+
+  return out;
 }
 
 function replaceRange(base: string, start: number, end: number, insert: string): string {
   const s = Math.max(0, Math.min(start, base.length));
   const e = Math.max(s, Math.min(end, base.length));
   return base.slice(0, s) + insert + base.slice(e);
+}
+
+function insertBelowRange(base: string, end: number, insert: string): string {
+  const safeEnd = Math.max(0, Math.min(end, base.length));
+  const prefix = base.slice(0, safeEnd);
+  const suffix = base.slice(safeEnd);
+
+  const separator = prefix.endsWith("\n") ? "\n" : "\n\n";
+  return `${prefix}${separator}${insert}${suffix}`;
+}
+
+function mapOperationToPrisma(operation: AIOperation): PrismaAIOperation {
+  switch (operation) {
+    case "enhance":
+      return PrismaAIOperation.rewrite;
+    case "summarize":
+      return PrismaAIOperation.summarize;
+    case "translate":
+      return PrismaAIOperation.translate;
+    case "reformat":
+      return PrismaAIOperation.reformat;
+    default:
+      throw apiError(ERROR_CODES.INVALID_REQUEST, "Unsupported AI operation");
+  }
 }
 
 export const aiJobService = {
@@ -124,16 +249,17 @@ export const aiJobService = {
       userId: params.requesterId,
     });
 
-    const normalized = normalizeSelection(params.selection, doc.content.length);
-    const selectedText = doc.content.slice(normalized.start, normalized.end);
+    const normalizedSelection = normalizeRequestedSelection(params.selection);
+    const normalizedParameters = normalizeParameters(params.operation, params.parameters);
+    const selectedText = normalizedSelection.text;
 
     const job = await aiJobRepo.create({
       documentId: doc.id,
       userId: params.requesterId,
-      operation: params.operation as unknown as PrismaAIOperation,
-      selectionStart: normalized.start,
-      selectionEnd: normalized.end,
-      parameters: params.parameters ?? {},
+      operation: mapOperationToPrisma(params.operation),
+      selectionStart: normalizedSelection.start,
+      selectionEnd: normalizedSelection.end,
+      parameters: normalizedParameters,
       basedOnVersionId: doc.headVersionId ?? null,
     });
 
@@ -144,7 +270,7 @@ export const aiJobService = {
         jobId: job.id,
         operation: params.operation,
         selectedText,
-        parameters: params.parameters ?? {},
+        parameters: normalizedParameters,
       });
 
       await aiJobRepo.updateStatus(job.id, AIJobStatus.succeeded, { result });
@@ -155,7 +281,10 @@ export const aiJobService = {
     }
 
     const updated = await aiJobRepo.findById(job.id);
-    if (!updated) throw apiError(ERROR_CODES.INTERNAL_ERROR, "AI job missing after creation");
+    if (!updated) {
+      throw apiError(ERROR_CODES.INTERNAL_ERROR, "AI job missing after creation");
+    }
+
     return updated;
   },
 
@@ -185,12 +314,41 @@ export const aiJobService = {
       throw apiError(ERROR_CODES.FORBIDDEN, "Insufficient role to apply AI suggestion");
     }
 
-    const normalized = normalizeSelection(
-      { start: job.selectionStart, end: job.selectionEnd },
+    const normalizedSelection = normalizePersistedSelection(
+      {
+        start: job.selectionStart,
+        end: job.selectionEnd,
+        text: doc.content.slice(job.selectionStart, job.selectionEnd),
+      },
       doc.content.length
     );
 
-    const newContent = replaceRange(doc.content, normalized.start, normalized.end, params.finalText);
+    if (job.basedOnVersionId && doc.headVersionId && job.basedOnVersionId !== doc.headVersionId) {
+      throw apiError(
+        ERROR_CODES.CONFLICT,
+        "Document changed since this AI suggestion was generated"
+      );
+    }
+
+    const jobParameters =
+      job.parameters && typeof job.parameters === "object"
+        ? (job.parameters as {
+            applyMode?: ApplyMode;
+          })
+        : {};
+
+    const applyMode: ApplyMode =
+      jobParameters.applyMode === "insert_below" ? "insert_below" : "replace";
+
+    const newContent =
+      applyMode === "insert_below"
+        ? insertBelowRange(doc.content, normalizedSelection.end, params.finalText)
+        : replaceRange(
+            doc.content,
+            normalizedSelection.start,
+            normalizedSelection.end,
+            params.finalText
+          );
 
     const newVersion = await versionRepo.create({
       documentId: doc.id,
@@ -217,6 +375,7 @@ export const aiJobService = {
         aiJobId: job.id,
         basedOnVersionId: job.basedOnVersionId,
         newHeadVersionId: newVersion.id,
+        applyMode,
       },
     });
 

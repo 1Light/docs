@@ -1,5 +1,3 @@
-// apps/web/src/features/ai/AISuggestionPanel.tsx
-
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   applyAIJob,
@@ -21,12 +19,68 @@ type Props = {
 };
 
 type Mode = "idle" | "running" | "ready" | "error";
+type ApplyMode = "replace" | "insert_below";
+type EnhanceStyle = "clearer" | "concise" | "professional" | "formal";
+type SummaryStyle = "short_paragraph" | "bullet_points";
+type ReformatStyle =
+  | "bullet_list"
+  | "paragraph"
+  | "professional_email"
+  | "structured_notes";
 
-const DEFAULT_OPS: Array<{ op: AIOperation; label: string; hint: string }> = [
-  { op: "rewrite", label: "Rewrite", hint: "Improve clarity and tone." },
-  { op: "summarize", label: "Summarize", hint: "Extract key points." },
-  { op: "translate", label: "Translate", hint: "Convert into another language." },
-  { op: "reformat", label: "Reformat", hint: "Restructure into a new format." },
+type OperationConfig = {
+  op: AIOperation;
+  label: string;
+  hint: string;
+  applyMode: ApplyMode;
+};
+
+const DEFAULT_OPS: OperationConfig[] = [
+  {
+    op: "enhance" as AIOperation,
+    label: "Enhance writing",
+    hint: "Improve clarity and tone while preserving meaning.",
+    applyMode: "replace",
+  },
+  {
+    op: "summarize",
+    label: "Summarize",
+    hint: "Generate a concise summary of the selected text.",
+    applyMode: "insert_below",
+  },
+  {
+    op: "translate",
+    label: "Translate",
+    hint: "Translate the selected text into another language.",
+    applyMode: "replace",
+  },
+  {
+    op: "reformat",
+    label: "Change format",
+    hint: "Restructure the selected text without changing its meaning.",
+    applyMode: "replace",
+  },
+];
+
+const ENHANCE_OPTIONS: Array<{ value: EnhanceStyle; label: string }> = [
+  { value: "clearer", label: "Clearer" },
+  { value: "concise", label: "More concise" },
+  { value: "professional", label: "More professional" },
+  { value: "formal", label: "More formal" },
+];
+
+const SUMMARY_OPTIONS: Array<{ value: SummaryStyle; label: string }> = [
+  { value: "short_paragraph", label: "Short paragraph" },
+  { value: "bullet_points", label: "3 bullet points" },
+];
+
+const LANGUAGE_OPTIONS = ["Arabic", "English", "French", "Spanish", "German"];
+
+const REFORMAT_OPTIONS: Array<{ value: ReformatStyle; label: string }> = [
+  { value: "bullet_list", label: "Bullet list" },
+  { value: "paragraph", label: "Paragraph" },
+  { value: "professional_email", label: "Professional email" },
+  { value: "structured_notes", label: "Structured notes" },
 ];
 
 function clampPreview(text: string, max = 220) {
@@ -36,23 +90,25 @@ function clampPreview(text: string, max = 220) {
 }
 
 export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
-  const [operation, setOperation] = useState<AIOperation>("rewrite");
-  const [tone, setTone] = useState("");
-  const [language, setLanguage] = useState("");
-  const [formatStyle, setFormatStyle] = useState("");
+  const [operation, setOperation] = useState<AIOperation>("enhance" as AIOperation);
+  const [enhanceStyle, setEnhanceStyle] = useState<EnhanceStyle>("clearer");
+  const [summaryStyle, setSummaryStyle] = useState<SummaryStyle>("short_paragraph");
+  const [language, setLanguage] = useState("Arabic");
+  const [customLanguage, setCustomLanguage] = useState("");
+  const [reformatStyle, setReformatStyle] = useState<ReformatStyle>("bullet_list");
 
   const [job, setJob] = useState<AIJob | null>(null);
   const [mode, setMode] = useState<Mode>("idle");
   const [error, setError] = useState<string | null>(null);
   const [finalText, setFinalText] = useState("");
 
-  // Prevent multiple overlapping pollers
   const pollTimerRef = useRef<number | null>(null);
 
   const selectionLen = useMemo(
     () => Math.max(0, (selection?.end ?? 0) - (selection?.start ?? 0)),
     [selection?.start, selection?.end]
   );
+
   const canRun = useMemo(
     () => (selection?.end ?? 0) > (selection?.start ?? 0),
     [selection?.start, selection?.end]
@@ -71,6 +127,18 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
   const isRunning = mode === "running";
   const canApply = mode === "ready" && Boolean(job) && finalText.trim().length > 0;
 
+  const effectiveLanguage = useMemo(() => {
+    const custom = customLanguage.trim();
+    return custom.length > 0 ? custom : language;
+  }, [customLanguage, language]);
+
+  const applyHint = useMemo(() => {
+    if (activeOp.applyMode === "insert_below") {
+      return "Apply will insert the generated result below the selected text.";
+    }
+    return "Apply will replace the selected text.";
+  }, [activeOp.applyMode]);
+
   function clearPollTimer() {
     if (pollTimerRef.current != null) {
       window.clearInterval(pollTimerRef.current);
@@ -78,16 +146,12 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
     }
   }
 
-  // If the user changes selection while a job/result is present, reset to avoid applying into the wrong range
   useEffect(() => {
     if (mode === "idle") return;
-    // If there is no job yet (or user edits selection), safest is reset.
-    // This prevents "Generate" for one selection but "Apply" into a different one.
     reset();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selection.start, selection.end, selection.text]);
 
-  // Polling when running (MVP) : only one interval per jobId
   useEffect(() => {
     if (!job) return;
 
@@ -99,7 +163,6 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
 
     setMode("running");
 
-    // If a poller already exists for this job, don't create another
     if (pollTimerRef.current != null) return;
 
     pollTimerRef.current = window.setInterval(async () => {
@@ -128,10 +191,8 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
     }, 900);
 
     return () => {
-      // cleanup on job change/unmount
       clearPollTimer();
     };
-    // Intentionally depend on jobId + status, not the full job object.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [job?.jobId, job?.status]);
 
@@ -148,11 +209,17 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
       const created = await createAIJob({
         documentId,
         operation,
-        selection: { start: selection.start, end: selection.end },
+        selection: {
+          start: selection.start,
+          end: selection.end,
+          text: selection.text,
+        },
         parameters: {
-          ...(tone ? { tone } : {}),
-          ...(language ? { language } : {}),
-          ...(formatStyle ? { formatStyle } : {}),
+          ...(operation === "enhance" ? { style: enhanceStyle } : {}),
+          ...(operation === "summarize" ? { summaryStyle } : {}),
+          ...(operation === "translate" ? { language: effectiveLanguage } : {}),
+          ...(operation === "reformat" ? { formatStyle: reformatStyle } : {}),
+          applyMode: activeOp.applyMode,
         },
       });
 
@@ -192,6 +259,11 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
     }
   }
 
+  async function rerun() {
+    if (isRunning || !canRun) return;
+    await run();
+  }
+
   function reset() {
     clearPollTimer();
     setError(null);
@@ -221,20 +293,19 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
               {mode === "running"
                 ? "Running"
                 : mode === "ready"
-                ? "Ready"
-                : mode === "error"
-                ? "Error"
-                : "Idle"}
+                  ? "Ready"
+                  : mode === "error"
+                    ? "Error"
+                    : "Idle"}
             </Badge>
           </div>
         </div>
       </div>
 
       <div className="p-4">
-        {/* Selection preview */}
         <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3">
           <div className="flex items-center justify-between gap-2">
-            <div className="text-xs font-medium text-gray-900">Selection</div>
+            <div className="text-xs font-medium text-gray-900">Original selection</div>
             {canRun ? (
               <div className="text-xs text-gray-600">
                 Range: {selection.start} to {selection.end}
@@ -259,7 +330,6 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
           )}
         </div>
 
-        {/* Controls */}
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <label className="block text-xs font-medium text-gray-700">Operation</label>
@@ -281,60 +351,140 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
                 ))}
               </select>
             </div>
-            <div className="mt-2 text-xs text-gray-500">{activeOp.hint}</div>
+            <div className="mt-2 text-xs leading-relaxed text-gray-500">{activeOp.hint}</div>
           </div>
 
-          {operation === "rewrite" && (
+          {operation === "enhance" && (
             <div>
-              <label className="block text-xs font-medium text-gray-700">Tone</label>
+              <label className="block text-xs font-medium text-gray-700">Style</label>
               <div className="mt-2">
-                <Input
-                  value={tone}
-                  onChange={(e) => setTone(e.target.value)}
-                  placeholder="Example: formal, friendly"
+                <select
+                  className={[
+                    "w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 shadow-sm",
+                    "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
+                    "disabled:bg-gray-50 disabled:text-gray-500",
+                  ].join(" ")}
+                  value={enhanceStyle}
+                  onChange={(e) => setEnhanceStyle(e.target.value as EnhanceStyle)}
                   disabled={isRunning}
-                />
+                >
+                  {ENHANCE_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
               </div>
-              <div className="mt-2 text-xs text-gray-500">Optional: leave blank for default.</div>
+              <div className="mt-2 text-xs leading-relaxed text-gray-500">
+                Preserves meaning while improving wording.
+              </div>
+            </div>
+          )}
+
+          {operation === "summarize" && (
+            <div>
+              <label className="block text-xs font-medium text-gray-700">Summary style</label>
+              <div className="mt-2">
+                <select
+                  className={[
+                    "w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 shadow-sm",
+                    "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
+                    "disabled:bg-gray-50 disabled:text-gray-500",
+                  ].join(" ")}
+                  value={summaryStyle}
+                  onChange={(e) => setSummaryStyle(e.target.value as SummaryStyle)}
+                  disabled={isRunning}
+                >
+                  {SUMMARY_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="mt-2 text-xs leading-relaxed text-gray-500">
+                Summaries are inserted below the selected text by default.
+              </div>
             </div>
           )}
 
           {operation === "translate" && (
-            <div>
-              <label className="block text-xs font-medium text-gray-700">Language</label>
-              <div className="mt-2">
-                <Input
-                  value={language}
-                  onChange={(e) => setLanguage(e.target.value)}
-                  placeholder="Example: Arabic"
-                  disabled={isRunning}
-                />
+            <>
+              <div>
+                <label className="block text-xs font-medium text-gray-700">Language</label>
+                <div className="mt-2">
+                  <select
+                    className={[
+                      "w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 shadow-sm",
+                      "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
+                      "disabled:bg-gray-50 disabled:text-gray-500",
+                    ].join(" ")}
+                    value={language}
+                    onChange={(e) => setLanguage(e.target.value)}
+                    disabled={isRunning}
+                  >
+                    {LANGUAGE_OPTIONS.map((opt) => (
+                      <option key={opt} value={opt}>
+                        {opt}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-              <div className="mt-2 text-xs text-gray-500">Example: Arabic, French, Japanese.</div>
-            </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700">
+                  Custom language
+                </label>
+                <div className="mt-2">
+                  <Input
+                    value={customLanguage}
+                    onChange={(e) => setCustomLanguage(e.target.value)}
+                    placeholder="Optional: Italian, Urdu, Turkish"
+                    disabled={isRunning}
+                  />
+                </div>
+                <div className="mt-2 text-xs leading-relaxed text-gray-500">
+                  If filled, this overrides the selected language.
+                </div>
+              </div>
+            </>
           )}
 
           {operation === "reformat" && (
             <div className="sm:col-span-2">
-              <label className="block text-xs font-medium text-gray-700">Format style</label>
+              <label className="block text-xs font-medium text-gray-700">Target format</label>
               <div className="mt-2">
-                <Input
-                  value={formatStyle}
-                  onChange={(e) => setFormatStyle(e.target.value)}
-                  placeholder="Example: bullet points, meeting notes"
+                <select
+                  className={[
+                    "w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 shadow-sm",
+                    "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
+                    "disabled:bg-gray-50 disabled:text-gray-500",
+                  ].join(" ")}
+                  value={reformatStyle}
+                  onChange={(e) => setReformatStyle(e.target.value as ReformatStyle)}
                   disabled={isRunning}
-                />
+                >
+                  {REFORMAT_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
               </div>
-              <div className="mt-2 text-xs text-gray-500">
-                Describe the target structure clearly.
+              <div className="mt-2 text-xs leading-relaxed text-gray-500">
+                Changes structure and presentation while preserving meaning.
               </div>
             </div>
           )}
         </div>
 
-        {/* Actions */}
-        <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2">
+        <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+          {applyHint}
+        </div>
+
+        <div className="mt-4">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="primary"
               onClick={run}
@@ -350,15 +500,26 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
               disabled={!canApply}
               className="w-full sm:w-auto"
             >
-              Apply
+              Accept
             </Button>
+
+            {(mode === "ready" || mode === "error") && (
+              <Button
+                variant="secondary"
+                onClick={rerun}
+                disabled={!canRun || isRunning}
+                className="w-full sm:w-auto"
+              >
+                Try again
+              </Button>
+            )}
           </div>
 
-          <div className="flex items-center justify-between gap-2 sm:justify-end">
-            <div className="text-xs text-gray-600">
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-xs leading-relaxed text-gray-600">
               {mode === "idle" && "Ready when you are."}
               {mode === "running" && "Working on it."}
-              {mode === "ready" && "Review and edit before applying."}
+              {mode === "ready" && "Review, edit, then accept or reject."}
               {mode === "error" && "Fix the issue and try again."}
             </div>
 
@@ -366,18 +527,17 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
               <button
                 type="button"
                 onClick={reset}
-                className="text-xs font-medium text-gray-700 hover:text-gray-900 transition-colors"
+                className="self-start text-xs font-medium text-gray-700 transition-colors hover:text-gray-900 sm:self-auto"
               >
-                Reset
+                {mode === "ready" ? "Reject" : "Dismiss"}
               </button>
             )}
           </div>
         </div>
 
-        {/* Result */}
         <div className="mt-4">
           <div className="flex items-center justify-between gap-2">
-            <div className="text-xs font-semibold text-gray-900">Result</div>
+            <div className="text-xs font-semibold text-gray-900">Suggestion</div>
             {mode === "ready" ? (
               <Badge variant="success">Editable</Badge>
             ) : mode === "running" ? (
@@ -417,7 +577,7 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
 
           {mode === "ready" && (
             <div className="mt-2 text-xs text-gray-500">
-              You can edit the result directly. Apply will insert it into the selected range.
+              You can edit the suggestion before accepting it.
             </div>
           )}
         </div>

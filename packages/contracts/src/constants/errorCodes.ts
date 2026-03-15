@@ -13,6 +13,7 @@ export const ERROR_CODES = {
   // Validation / Request
   INVALID_REQUEST: "INVALID_REQUEST", // 400
   NOT_FOUND: "NOT_FOUND", // 404
+  CONFLICT: "CONFLICT", // 409
 
   // AI-specific
   AI_DISABLED_BY_POLICY: "AI_DISABLED_BY_POLICY", // 403

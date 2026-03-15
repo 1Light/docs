@@ -5,10 +5,11 @@
  * All providers (Gemini, Mock, etc.) must implement this interface.
  */
 
-export type LLMOperation = "rewrite" | "summarize" | "translate" | "reformat";
+export type LLMOperation = "enhance" | "summarize" | "translate" | "reformat";
 
 export type LLMParameters = {
-  tone?: string;
+  style?: string;
+  summaryStyle?: string;
   language?: string;
   formatStyle?: string;
 };

@@ -2,7 +2,7 @@
 
 import { http } from "../../lib/http";
 
-export type AIOperation = "rewrite" | "summarize" | "translate" | "reformat";
+export type AIOperation = "enhance" | "summarize" | "translate" | "reformat";
 
 export type AIJobStatus = "queued" | "running" | "succeeded" | "failed";
 
@@ -19,18 +19,26 @@ export type AIJob = {
   createdAt: string;
 };
 
+export type ApplyMode = "replace" | "insert_below";
+
 export type CreateAIJobParams = {
   documentId: string;
   operation: AIOperation;
-  selection: { start: number; end: number };
+  selection: {
+    start: number;
+    end: number;
+    text: string;
+  };
   /**
    * Optional operation parameters.
    * Note: the API may ignore fields that are irrelevant for the chosen operation.
    */
   parameters?: {
-    tone?: string;
+    style?: string;
+    summaryStyle?: string;
     language?: string;
     formatStyle?: string;
+    applyMode?: ApplyMode;
   };
 };
 

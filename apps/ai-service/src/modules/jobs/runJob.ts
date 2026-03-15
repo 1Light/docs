@@ -8,7 +8,11 @@ import { config } from "../../config/env";
 import { withRetry } from "../../lib/retry";
 import { buildPrompt } from "./promptTemplates";
 
-function apiError(code: (typeof ERROR_CODES)[keyof typeof ERROR_CODES], message: string, details?: unknown) {
+function apiError(
+  code: (typeof ERROR_CODES)[keyof typeof ERROR_CODES],
+  message: string,
+  details?: unknown
+) {
   return { code, message, ...(details !== undefined ? { details } : {}) };
 }
 
@@ -27,7 +31,8 @@ export type RunJobInput = {
   operation: LLMOperation;
   selectedText: string;
   parameters?: {
-    tone?: string;
+    style?: string;
+    summaryStyle?: string;
     language?: string;
     formatStyle?: string;
   };
@@ -38,7 +43,8 @@ export async function runJob(input: RunJobInput): Promise<{ result: string }> {
 
   const prompt = buildPrompt(input.operation, {
     selectedText: input.selectedText,
-    tone: input.parameters?.tone,
+    style: input.parameters?.style,
+    summaryStyle: input.parameters?.summaryStyle,
     language: input.parameters?.language,
     formatStyle: input.parameters?.formatStyle,
   });
