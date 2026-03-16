@@ -18,6 +18,7 @@ import ListItem from "@tiptap/extension-list-item";
 import Link from "@tiptap/extension-link";
 
 import { SlashCommand } from "./slashCommands";
+import { getCollaborationColor } from "../presence/colorPalette";
 
 import { Plugin, PluginKey } from "prosemirror-state";
 import { Decoration, DecorationSet } from "prosemirror-view";
@@ -40,26 +41,20 @@ export type CollaborationCursorUser = {
   color?: string;
 };
 
-function hashToHue(input: string) {
-  let h = 0;
-  for (let i = 0; i < input.length; i++) {
-    h = (h * 31 + input.charCodeAt(i)) >>> 0;
-  }
-  return h % 360;
-}
-
 export function getCollaborationUserColor(user: CollaborationCursorUser) {
   if (user.color?.trim()) return user.color.trim();
-
-  const label = user.name?.trim() || user.userId;
-  const hue = hashToHue(label);
-
-  return `hsl(${hue} 70% 45%)`;
+  return getCollaborationColor(user.userId, user.name);
 }
 
 export function renderCollaborationCursor(user: CollaborationCursorUser) {
   const color = getCollaborationUserColor(user);
   const label = user.name?.trim() || "Collaborator";
+
+  const wrapper = document.createElement("span");
+  wrapper.classList.add("collaboration-cursor");
+  wrapper.style.position = "relative";
+  wrapper.style.display = "inline-block";
+  wrapper.style.pointerEvents = "none";
 
   const caret = document.createElement("span");
   caret.classList.add("collaboration-cursor__caret");
@@ -89,9 +84,10 @@ export function renderCollaborationCursor(user: CollaborationCursorUser) {
   name.style.boxShadow = "0 1px 3px rgba(0, 0, 0, 0.18)";
   name.textContent = label;
 
-  caret.appendChild(name);
+  wrapper.appendChild(caret);
+  wrapper.appendChild(name);
 
-  return caret;
+  return wrapper;
 }
 
 export const CommentHighlights = Extension.create({

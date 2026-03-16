@@ -7,6 +7,45 @@
   pointer-events: none !important;
 }
 
+/* --- Collaboration caret / label / selection styling --- */
+
+.collaboration-cursor__caret {
+  position: relative;
+  margin-left: -1px;
+  margin-right: -1px;
+  border-left-width: 2px;
+  border-left-style: solid;
+  border-right: none;
+  display: inline-block;
+  height: 1em;
+  vertical-align: text-top;
+  z-index: 20;
+}
+
+.collaboration-cursor__label {
+  position: absolute;
+  top: -1.45em;
+  left: -1px;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  border-radius: 6px;
+  padding: 3px 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+  user-select: none;
+  z-index: 30;
+}
+
+.collaboration-cursor__selection {
+  display: inline;
+  border-radius: 2px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  opacity: 0.22;
+}
+
 /* --- ProseMirror selection styling --- */
 
 .ProseMirror ::selection {

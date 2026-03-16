@@ -10,6 +10,7 @@ import {
   type PresenceRosterPayload,
 } from "../realtime/presenceClient";
 import { createCursorClient, type CursorBatchPayload } from "../realtime/cursorClient";
+import { getCollaborationColor } from "../presence/colorPalette";
 
 import { EditorStateManager } from "./EditorStateManager";
 import {
@@ -152,21 +153,21 @@ export function useCollabEditorSession({
         if (payload.documentId !== documentId) return;
 
         const roster = Array.isArray(payload.users) ? payload.users : [];
-        const myRosterEntry = roster.find((u) => u.userId === me.id);
+        const liveRoster = roster.filter((u) => u.userId && u.userId !== "");
 
-        if (myRosterEntry?.color) {
-          managerRef.current?.setUserColor(myRosterEntry.color);
-        }
+        const myStableColor = getCollaborationColor(me.id, me.name);
+        managerRef.current?.setUserColor(myStableColor);
 
         setPresenceUsers(
-          roster.map((u) => ({
+          liveRoster.map((u) => ({
             userId: u.userId,
             name: u.name ?? undefined,
-            color: u.color ?? undefined,
+            color: getCollaborationColor(u.userId, u.name ?? undefined),
             status: "active",
           }))
         );
       },
+
       onBatch: (payload: PresenceBatchPayload) => {
         if (payload.documentId !== documentId) return;
 
@@ -174,9 +175,13 @@ export function useCollabEditorSession({
           const map = new Map(prev.map((u) => [u.userId, u]));
 
           for (const upd of payload.updates ?? []) {
-            const existing = map.get(upd.userId) ?? { userId: upd.userId };
+            const existing = map.get(upd.userId) ?? {
+              userId: upd.userId,
+            };
+
             const next: PresenceUser = {
               ...existing,
+              color: getCollaborationColor(upd.userId, existing.name),
               status: upd.state.status ?? existing.status ?? "active",
             };
 

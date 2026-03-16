@@ -1,5 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
-import { me as fetchMe, logout, deleteAccount as deleteAccountApi } from "./features/auth/api";
+import {
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+  useParams,
+} from "react-router-dom";
+
+import {
+  me as fetchMe,
+  logout,
+  deleteAccount as deleteAccountApi,
+} from "./features/auth/api";
 import { disconnectSocket } from "./features/realtime/socket";
 
 import { Login } from "./features/auth/pages/Login";
@@ -12,9 +25,6 @@ import { AdminPage } from "./features/admin/pages/Admin";
 import { AppHeader } from "./components/layout/AppHeader";
 
 import {
-  type Route,
-  getInitialRoute,
-  getInviteRouteFromUrl,
   rememberPendingInvite,
   readPendingInvite,
   takePendingInvite,
@@ -30,8 +40,34 @@ import {
 
 import { acceptDocumentInviteToken, acceptOrgInviteToken } from "./app/invite";
 
+function isAuthPath(pathname: string) {
+  return (
+    pathname === "/login" ||
+    pathname === "/signup" ||
+    pathname.startsWith("/signup/invite/")
+  );
+}
+
+function isProtectedPath(pathname: string) {
+  return (
+    pathname === "/documents" ||
+    pathname.startsWith("/documents/") ||
+    pathname === "/admin" ||
+    pathname.startsWith("/invite/org/") ||
+    pathname.startsWith("/invite/document/")
+  );
+}
+
+function defaultAuthedPath(user: MeUser | null) {
+  return user?.orgRole === "OrgAdmin" || user?.orgRole === "OrgOwner"
+    ? "/admin"
+    : "/documents";
+}
+
 export default function App() {
-  const [route, setRoute] = useState<Route>(() => getInitialRoute());
+  const navigate = useNavigate();
+  const location = useLocation();
+
   const [authChecked, setAuthChecked] = useState(false);
   const [me, setMe] = useState<MeUser | null>(() => readMeLocal());
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
@@ -42,6 +78,8 @@ export default function App() {
   );
 
   const isOrgOwner = me?.orgRole === "OrgOwner";
+  const inAdmin = location.pathname === "/admin";
+  const onAuthPage = isAuthPath(location.pathname);
 
   useEffect(() => {
     const handleBeforeUnload = () => {
@@ -65,26 +103,44 @@ export default function App() {
     let alive = true;
 
     (async () => {
-      const inviteRoute = getInviteRouteFromUrl();
+      const pathname = location.pathname;
 
-      if (inviteRoute?.name === "documentInviteAccept" && !hasToken()) {
-        rememberPendingInvite(inviteRoute);
-        if (alive) {
-          setAuthChecked(true);
-          setRoute({ name: "login" });
-        }
-        return;
-      }
+      const orgInviteMatch = pathname.match(/^\/invite\/org\/([^/]+)$/);
+      const documentInviteMatch = pathname.match(/^\/invite\/document\/([^/]+)$/);
+      const signupInviteMatch = pathname.match(/^\/signup\/invite\/([^/]+)$/);
+
+      const orgInviteToken = orgInviteMatch?.[1];
+      const documentInviteToken = documentInviteMatch?.[1];
+      const signupInviteToken = signupInviteMatch?.[1];
 
       if (!hasToken()) {
+        if (documentInviteToken) {
+          rememberPendingInvite({ name: "documentInviteAccept", token: documentInviteToken });
+          if (alive) {
+            setAuthChecked(true);
+            navigate("/login", { replace: true });
+          }
+          return;
+        }
+
+        if (orgInviteToken) {
+          rememberPendingInvite({ name: "orgInviteAccept", token: orgInviteToken });
+          if (alive) {
+            setAuthChecked(true);
+            navigate("/login", { replace: true });
+          }
+          return;
+        }
+
         if (alive) {
           setAuthChecked(true);
 
-          if (inviteRoute?.name === "signupInvite") {
-            setRoute(inviteRoute);
-          } else {
-            const initial = getInitialRoute();
-            setRoute(initial.name === "admin" ? { name: "login" } : initial);
+          if (signupInviteToken || pathname === "/login" || pathname === "/signup") {
+            return;
+          }
+
+          if (isProtectedPath(pathname) || pathname === "/") {
+            navigate("/login", { replace: true });
           }
         }
         return;
@@ -101,32 +157,24 @@ export default function App() {
         const pending = takePendingInvite();
         if (pending) {
           if (pending.name === "signupInvite") {
-            setRoute(
-              normalized.orgRole === "OrgAdmin" || normalized.orgRole === "OrgOwner"
-                ? { name: "admin" }
-                : { name: "documents" }
-            );
+            navigate(defaultAuthedPath(normalized), { replace: true });
             return;
           }
 
-          setRoute(pending);
-          return;
-        }
-
-        setRoute((currentRoute) => {
-          if (
-            currentRoute.name === "editor" ||
-            currentRoute.name === "documents" ||
-            currentRoute.name === "orgInviteAccept" ||
-            currentRoute.name === "documentInviteAccept"
-          ) {
-            return currentRoute;
+          if (pending.name === "orgInviteAccept") {
+            navigate(`/invite/org/${pending.token}`, { replace: true });
+            return;
           }
 
-          return normalized.orgRole === "OrgAdmin" || normalized.orgRole === "OrgOwner"
-            ? { name: "admin" }
-            : { name: "documents" };
-        });
+          if (pending.name === "documentInviteAccept") {
+            navigate(`/invite/document/${pending.token}`, { replace: true });
+            return;
+          }
+        }
+
+        if (pathname === "/" || pathname === "/login" || pathname === "/signup") {
+          navigate(defaultAuthedPath(normalized), { replace: true });
+        }
       } catch {
         try {
           disconnectSocket();
@@ -137,10 +185,14 @@ export default function App() {
         clearSession();
 
         if (!alive) return;
+
         setMe(null);
 
-        const initial = getInitialRoute();
-        setRoute(initial.name === "admin" ? { name: "login" } : initial);
+        if (pathname.startsWith("/signup/invite/")) {
+          navigate(pathname, { replace: true });
+        } else {
+          navigate("/login", { replace: true });
+        }
       } finally {
         if (alive) setAuthChecked(true);
       }
@@ -149,7 +201,7 @@ export default function App() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [location.pathname, navigate]);
 
   async function loadCurrentUserAndRouteAfterLogin() {
     try {
@@ -161,26 +213,23 @@ export default function App() {
 
       const pending = takePendingInvite();
       if (pending) {
-        if (pending.name === "orgInviteAccept" || pending.name === "documentInviteAccept") {
-          setRoute(pending);
+        if (pending.name === "orgInviteAccept") {
+          navigate(`/invite/org/${pending.token}`, { replace: true });
+          return;
+        }
+
+        if (pending.name === "documentInviteAccept") {
+          navigate(`/invite/document/${pending.token}`, { replace: true });
           return;
         }
 
         if (pending.name === "signupInvite") {
-          setRoute(
-            normalized.orgRole === "OrgAdmin" || normalized.orgRole === "OrgOwner"
-              ? { name: "admin" }
-              : { name: "documents" }
-          );
+          navigate(defaultAuthedPath(normalized), { replace: true });
           return;
         }
       }
 
-      setRoute(
-        normalized.orgRole === "OrgAdmin" || normalized.orgRole === "OrgOwner"
-          ? { name: "admin" }
-          : { name: "documents" }
-      );
+      navigate(defaultAuthedPath(normalized), { replace: true });
     } catch {
       try {
         disconnectSocket();
@@ -190,7 +239,7 @@ export default function App() {
 
       clearSession();
       setMe(null);
-      setRoute({ name: "login" });
+      navigate("/login", { replace: true });
     }
   }
 
@@ -205,7 +254,7 @@ export default function App() {
 
     clearSession();
     setMe(null);
-    setRoute({ name: "login" });
+    navigate("/login", { replace: true });
   }
 
   async function handleDeleteAccount() {
@@ -227,7 +276,7 @@ export default function App() {
       await deleteAccountApi();
       clearSession();
       setMe(null);
-      setRoute({ name: "login" });
+      navigate("/login", { replace: true });
       window.alert("Your account has been deleted.");
     } catch (e: any) {
       window.alert(e?.message ?? "Failed to delete account");
@@ -244,11 +293,6 @@ export default function App() {
     );
   }
 
-  const inAdmin = route.name === "admin";
-
-  const isAuthPage =
-    route.name === "login" || route.name === "signupOwner" || route.name === "signupInvite";
-
   const pendingInviteForLogin = !hasToken() ? readPendingInvite() : null;
   const loginInviteMode =
     pendingInviteForLogin?.name === "orgInviteAccept" ||
@@ -257,89 +301,221 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {!isAuthPage && (
+      {!onAuthPage && (
         <AppHeader
           me={me}
           isAdmin={isAdmin}
           isOrgOwner={isOrgOwner}
           inAdmin={inAdmin}
-          onToggleAdmin={() => setRoute(inAdmin ? { name: "documents" } : { name: "admin" })}
+          onToggleAdmin={() => navigate(inAdmin ? "/documents" : "/admin")}
           onDeleteAccount={handleDeleteAccount}
           onLogout={doLogout}
         />
       )}
 
-      {route.name === "login" && (
-        <Login
-          onLoggedIn={loadCurrentUserAndRouteAfterLogin}
-          onGoToSignupOwner={() => setRoute({ name: "signupOwner" })}
-          inviteMode={loginInviteMode}
-          inviteToken={loginInviteToken}
+      <Routes>
+        <Route
+          path="/"
+          element={<Navigate to={hasToken() ? defaultAuthedPath(me) : "/login"} replace />}
         />
-      )}
 
-      {route.name === "signupOwner" && (
-        <SignupOwner
-          onSignedUp={loadCurrentUserAndRouteAfterLogin}
-          onGoToLogin={() => setRoute({ name: "login" })}
-        />
-      )}
-
-      {route.name === "signupInvite" && (
-        <SignupInvite
-          token={route.token}
-          onSignedUp={loadCurrentUserAndRouteAfterLogin}
-          onGoToLogin={() => {
-            rememberPendingInvite({ name: "orgInviteAccept", token: route.token });
-            setRoute({ name: "login" });
-          }}
-        />
-      )}
-
-      {route.name === "orgInviteAccept" && (
-        <OrgInviteAcceptView
-          token={route.token}
-          meEmail={me?.email}
-          onSwitchAccount={async () => {
-            rememberPendingInvite(route);
-            await doLogout();
-          }}
-          onAccepted={() => {
-            setRoute(isAdmin ? { name: "admin" } : { name: "documents" });
-          }}
-          onCancel={() =>
-            setRoute(hasToken() ? (isAdmin ? { name: "admin" } : { name: "documents" }) : { name: "login" })
+        <Route
+          path="/login"
+          element={
+            <Login
+              onLoggedIn={loadCurrentUserAndRouteAfterLogin}
+              onGoToSignupOwner={() => navigate("/signup")}
+              inviteMode={loginInviteMode}
+              inviteToken={loginInviteToken}
+            />
           }
         />
-      )}
 
-      {route.name === "documentInviteAccept" && (
-        <DocumentInviteAcceptView
-          token={route.token}
-          meEmail={me?.email}
-          onSwitchAccount={async () => {
-            rememberPendingInvite(route);
-            await doLogout();
-          }}
-          onAccepted={() => {
-            setRoute({ name: "documents" });
-          }}
-          onCancel={() =>
-            setRoute(hasToken() ? (isAdmin ? { name: "admin" } : { name: "documents" }) : { name: "login" })
+        <Route
+          path="/signup"
+          element={
+            <SignupOwner
+              onSignedUp={loadCurrentUserAndRouteAfterLogin}
+              onGoToLogin={() => navigate("/login")}
+            />
           }
         />
-      )}
 
-      {route.name === "documents" && (
-        <Documents onOpenDocument={(documentId) => setRoute({ name: "editor", documentId })} />
-      )}
+        <Route
+          path="/signup/invite/:token"
+          element={<SignupInviteRoute onSignedUp={loadCurrentUserAndRouteAfterLogin} />}
+        />
 
-      {route.name === "editor" && (
-        <EditorPage documentId={route.documentId} onBack={() => setRoute({ name: "documents" })} />
-      )}
+        <Route
+          path="/documents"
+          element={
+            hasToken() ? (
+              <Documents
+                onOpenDocument={(documentId) => navigate(`/documents/${documentId}`)}
+              />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
 
-      {route.name === "admin" && <AdminPage onBack={() => setRoute({ name: "documents" })} />}
+        <Route
+          path="/documents/:documentId"
+          element={hasToken() ? <EditorRoute /> : <Navigate to="/login" replace />}
+        />
+
+        <Route
+          path="/admin"
+          element={
+            hasToken() ? (
+              <AdminPage onBack={() => navigate("/documents")} />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+
+        <Route
+          path="/invite/org/:token"
+          element={
+            hasToken() ? (
+              <OrgInviteAcceptRoute
+                meEmail={me?.email}
+                isAdmin={isAdmin}
+                onLogout={doLogout}
+              />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+
+        <Route
+          path="/invite/document/:token"
+          element={
+            hasToken() ? (
+              <DocumentInviteAcceptRoute
+                meEmail={me?.email}
+                isAdmin={isAdmin}
+                onLogout={doLogout}
+              />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+
+        <Route
+          path="*"
+          element={<Navigate to={hasToken() ? defaultAuthedPath(me) : "/login"} replace />}
+        />
+      </Routes>
     </div>
+  );
+}
+
+function SignupInviteRoute(props: {
+  onSignedUp: () => void;
+}) {
+  const navigate = useNavigate();
+  const params = useParams<{ token: string }>();
+
+  const token = params.token ?? "";
+
+  if (!token) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return (
+    <SignupInvite
+      token={token}
+      onSignedUp={props.onSignedUp}
+      onGoToLogin={() => {
+        rememberPendingInvite({ name: "orgInviteAccept", token });
+        navigate("/login");
+      }}
+    />
+  );
+}
+
+function EditorRoute() {
+  const navigate = useNavigate();
+  const params = useParams<{ documentId: string }>();
+
+  const documentId = params.documentId ?? "";
+
+  if (!documentId) {
+    return <Navigate to="/documents" replace />;
+  }
+
+  return <EditorPage documentId={documentId} onBack={() => navigate("/documents")} />;
+}
+
+function OrgInviteAcceptRoute(props: {
+  meEmail?: string;
+  isAdmin: boolean;
+  onLogout: () => Promise<void>;
+}) {
+  const navigate = useNavigate();
+  const params = useParams<{ token: string }>();
+
+  const token = params.token ?? "";
+
+  if (!token) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return (
+    <OrgInviteAcceptView
+      token={token}
+      meEmail={props.meEmail}
+      onSwitchAccount={async () => {
+        rememberPendingInvite({ name: "orgInviteAccept", token });
+        await props.onLogout();
+      }}
+      onAccepted={() => {
+        navigate(props.isAdmin ? "/admin" : "/documents", { replace: true });
+      }}
+      onCancel={() => {
+        navigate(hasToken() ? (props.isAdmin ? "/admin" : "/documents") : "/login", {
+          replace: true,
+        });
+      }}
+    />
+  );
+}
+
+function DocumentInviteAcceptRoute(props: {
+  meEmail?: string;
+  isAdmin: boolean;
+  onLogout: () => Promise<void>;
+}) {
+  const navigate = useNavigate();
+  const params = useParams<{ token: string }>();
+
+  const token = params.token ?? "";
+
+  if (!token) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return (
+    <DocumentInviteAcceptView
+      token={token}
+      meEmail={props.meEmail}
+      onSwitchAccount={async () => {
+        rememberPendingInvite({ name: "documentInviteAccept", token });
+        await props.onLogout();
+      }}
+      onAccepted={() => {
+        navigate("/documents", { replace: true });
+      }}
+      onCancel={() => {
+        navigate(hasToken() ? (props.isAdmin ? "/admin" : "/documents") : "/login", {
+          replace: true,
+        });
+      }}
+    />
   );
 }
 
@@ -382,7 +558,7 @@ function OrgInviteAcceptView(props: {
     return () => {
       alive = false;
     };
-  }, [props.token]);
+  }, [props.token, props.onAccepted]);
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
@@ -392,7 +568,9 @@ function OrgInviteAcceptView(props: {
           We’ll add you to the organization after you accept.
         </div>
 
-        {status === "accepting" && <div className="mt-4 text-sm text-gray-700">Accepting invite...</div>}
+        {status === "accepting" && (
+          <div className="mt-4 text-sm text-gray-700">Accepting invite...</div>
+        )}
 
         {status === "error" && (
           <div className="mt-4">
@@ -430,7 +608,9 @@ function OrgInviteAcceptView(props: {
           </div>
         )}
 
-        {status === "accepted" && <div className="mt-4 text-sm text-gray-700">Accepted. Redirecting...</div>}
+        {status === "accepted" && (
+          <div className="mt-4 text-sm text-gray-700">Accepted. Redirecting...</div>
+        )}
       </div>
     </div>
   );
@@ -475,7 +655,7 @@ function DocumentInviteAcceptView(props: {
     return () => {
       alive = false;
     };
-  }, [props.token]);
+  }, [props.token, props.onAccepted]);
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
@@ -485,7 +665,9 @@ function DocumentInviteAcceptView(props: {
           We’ll add the document to your workspace after you accept.
         </div>
 
-        {status === "accepting" && <div className="mt-4 text-sm text-gray-700">Accepting invite...</div>}
+        {status === "accepting" && (
+          <div className="mt-4 text-sm text-gray-700">Accepting invite...</div>
+        )}
 
         {status === "error" && (
           <div className="mt-4">
@@ -523,7 +705,9 @@ function DocumentInviteAcceptView(props: {
           </div>
         )}
 
-        {status === "accepted" && <div className="mt-4 text-sm text-gray-700">Accepted. Redirecting...</div>}
+        {status === "accepted" && (
+          <div className="mt-4 text-sm text-gray-700">Accepted. Redirecting...</div>
+        )}
       </div>
     </div>
   );

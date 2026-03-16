@@ -56,6 +56,14 @@ function normalizeHue(hue: number) {
   return best;
 }
 
+function stableUserColor(user: PresenceUser) {
+  const base = `${user.userId}:${user.name ?? ""}`.trim();
+  const rawHue = hashToHue(base || "user");
+  const hue = normalizeHue(rawHue);
+
+  return `hsl(${hue} 78% 46%)`;
+}
+
 function statusDotClass(status?: PresenceUser["status"]) {
   if (status === "idle") return "bg-yellow-500";
   if (status === "offline") return "bg-gray-400";
@@ -69,12 +77,11 @@ function statusLabel(status?: PresenceUser["status"]) {
 }
 
 function avatarColors(user: PresenceUser) {
-  const label = user.name?.trim() || user.userId;
-  const rawHue = extractHue(user.color) ?? hashToHue(label);
-  const hue = normalizeHue(rawHue);
+  const base = user.color?.trim() || stableUserColor(user);
+  const hue = extractHue(base) ?? 220;
 
   return {
-    bg: `hsl(${hue} 78% 58%)`,
+    bg: base,
     fg: "white",
     ring: `hsl(${hue} 65% 82%)`,
     panelBg: `hsl(${hue} 80% 96%)`,

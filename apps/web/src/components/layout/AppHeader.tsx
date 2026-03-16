@@ -2,6 +2,7 @@ import { useRef, useState, useEffect } from "react";
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
 import type { OrgRole } from "../../app/session";
+import { getCollaborationColor } from "../../features/presence/colorPalette";
 
 type MeUser = {
   id: string;
@@ -16,14 +17,6 @@ function initials(name?: string) {
   const a = parts[0]?.[0] ?? "?";
   const b = parts.length > 1 ? parts[parts.length - 1][0] : "";
   return (a + b).toUpperCase();
-}
-
-function hashToHue(input: string) {
-  let h = 0;
-  for (let i = 0; i < input.length; i++) {
-    h = (h * 31 + input.charCodeAt(i)) >>> 0;
-  }
-  return h % 360;
 }
 
 type Props = {
@@ -70,9 +63,8 @@ export function AppHeader({
   }, [menuOpen]);
 
   const userLabel = me?.name ?? "";
-  const hue = hashToHue(userLabel || "user");
-  const avatarBg = `hsl(${hue} 65% 92%)`;
-  const avatarFg = `hsl(${hue} 45% 28%)`;
+  const avatarBg = me ? getCollaborationColor(me.id, me.name) : "#111827";
+  const avatarFg = "#ffffff";
 
   const headerTitle = inAdmin ? "Admin console" : "Collab Editor";
   const headerSubtitle = inAdmin
@@ -132,23 +124,23 @@ export function AppHeader({
                   </div>
 
                   <div className="mt-1 space-y-1">
-                      <button
-                        type="button"
-                        onClick={onDeleteAccount}
-                        disabled={isOrgOwner}
-                        className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm text-red-600 transition-colors duration-150 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
+                    <button
+                      type="button"
+                      onClick={onDeleteAccount}
+                      disabled={isOrgOwner}
+                      className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm text-red-600 transition-colors duration-150 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
                       <span>Delete account</span>
                       {isOrgOwner ? (
                         <span className="text-[11px] text-gray-400">Disabled</span>
                       ) : null}
                     </button>
 
-                        <button
-                          type="button"
-                          onClick={onLogout}
-                          className="w-full rounded-xl px-3 py-2 text-left text-sm text-gray-700 transition-colors duration-150 hover:bg-gray-100"
-                        >
+                    <button
+                      type="button"
+                      onClick={onLogout}
+                      className="w-full rounded-xl px-3 py-2 text-left text-sm text-gray-700 transition-colors duration-150 hover:bg-gray-100"
+                    >
                       Logout
                     </button>
                   </div>

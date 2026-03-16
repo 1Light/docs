@@ -27,9 +27,10 @@ import { useCommentSummary } from "../../comments/useCommentSummary";
 type Props = {
   documentId: string;
   onBack?: () => void;
+  onCurrentUserColorChange?: (color: string | null) => void;
 };
 
-export function EditorPage({ documentId, onBack }: Props) {
+export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Props) {
   const meRef = useRef(readMe());
   const me = meRef.current;
 
@@ -174,6 +175,19 @@ export function EditorPage({ documentId, onBack }: Props) {
   });
 
   useEffect(() => {
+    const myLiveColor =
+      presenceUsers.find((u) => u.userId === me.id)?.color?.trim() || null;
+
+    onCurrentUserColorChange?.(myLiveColor);
+  }, [presenceUsers, me.id, onCurrentUserColorChange]);
+
+  useEffect(() => {
+    return () => {
+      onCurrentUserColorChange?.(null);
+    };
+  }, [onCurrentUserColorChange, documentId]);
+
+  useEffect(() => {
     let alive = true;
 
     (async () => {
@@ -248,7 +262,10 @@ export function EditorPage({ documentId, onBack }: Props) {
           }
 
           meta.set("seeded", true);
-          editor.commands.setContent(html);
+
+          mgr.ydoc.transact(() => {
+            editor.commands.setContent(html);
+          });
         } catch {
           // ignore
         }

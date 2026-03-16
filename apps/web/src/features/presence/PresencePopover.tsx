@@ -1,5 +1,3 @@
-// apps/web/src/features/presence/PresencePopover.tsx
-
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 export type PresenceUser = {
@@ -76,13 +74,20 @@ function normalizeHue(hue: number) {
   return best;
 }
 
-function getAvatarColors(user: PresenceUser) {
-  const label = user.name?.trim() || user.userId;
-  const rawHue = extractHue(user.color) ?? hashToHue(label);
+function getStableProfileColor(user: PresenceUser) {
+  const base = `${user.userId}:${user.name ?? ""}`.trim();
+  const rawHue = hashToHue(base || "user");
   const hue = normalizeHue(rawHue);
 
+  return `hsl(${hue} 78% 46%)`;
+}
+
+function getAvatarColors(user: PresenceUser) {
+  const base = user.color?.trim() || getStableProfileColor(user);
+  const hue = extractHue(base) ?? 220;
+
   return {
-    bg: `hsl(${hue} 78% 58%)`,
+    bg: base,
     fg: "white",
     ring: `hsl(${hue} 65% 82%)`,
     panelBg: `hsl(${hue} 80% 96%)`,

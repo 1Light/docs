@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useEditor, EditorContent, type Editor as TiptapEditor } from "@tiptap/react";
 
 import "prosemirror-view/style/prosemirror.css";
@@ -32,6 +32,23 @@ function getPlainTextSelection(editor: TiptapEditor): {
 export function CollabEditor(props: Props) {
   const notifySelectionFrameRef = useRef<number | null>(null);
 
+  const extensionsKey = useMemo(() => {
+    return props.extensions
+      .map((ext: any, idx: number) => {
+        if (!ext) return `null:${idx}`;
+
+        const name =
+          typeof ext?.name === "string"
+            ? ext.name
+            : typeof ext?.config?.name === "string"
+              ? ext.config.name
+              : `anon:${idx}`;
+
+        return `${idx}:${name}`;
+      })
+      .join("|");
+  }, [props.extensions]);
+
   function emitSelectionChange(editor: TiptapEditor) {
     const next = getPlainTextSelection(editor);
 
@@ -45,32 +62,60 @@ export function CollabEditor(props: Props) {
     });
   }
 
-  const editor = useEditor({
-    extensions: props.extensions,
-    content: "",
-    autofocus: false,
-    editorProps: {
-      attributes: {
-        class: [
-          "prose prose-sm sm:prose-base prose-gray max-w-none",
-          "text-gray-900",
-          "focus:outline-none",
-          "min-h-[58vh] lg:min-h-[72vh]",
-          "px-6 py-8 sm:px-12 sm:py-10",
-          "leading-relaxed",
-          "ProseMirror",
-          "cursor-text",
-          "select-text",
-        ].join(" "),
+  function syncCursorToAwareness(editor: TiptapEditor) {
+    const manager = (window as any).__editorManager;
+    if (!manager || typeof manager.updateCursor !== "function") return;
+
+    const { from, to } = editor.state.selection;
+    manager.updateCursor(from, to);
+  }
+
+  const editor = useEditor(
+    {
+      extensions: props.extensions,
+      content: "",
+      autofocus: false,
+      editorProps: {
+        attributes: {
+          class: [
+            "prose prose-sm sm:prose-base prose-gray max-w-none",
+            "text-gray-900",
+            "focus:outline-none",
+            "min-h-[58vh] lg:min-h-[72vh]",
+            "px-6 py-8 sm:px-12 sm:py-10",
+            "leading-relaxed",
+            "ProseMirror",
+            "cursor-text",
+            "select-text",
+          ].join(" "),
+        },
+        handleDOMEvents: {
+          blur: () => {
+            const manager = (window as any).__editorManager;
+            if (manager && typeof manager.clearCursor === "function") {
+              manager.clearCursor();
+            }
+            return false;
+          },
+        },
+      },
+      onCreate(ctx) {
+        syncCursorToAwareness(ctx.editor);
+      },
+      onFocus(ctx) {
+        syncCursorToAwareness(ctx.editor);
+      },
+      onSelectionUpdate(ctx) {
+        emitSelectionChange(ctx.editor);
+        syncCursorToAwareness(ctx.editor);
+      },
+      onTransaction(ctx) {
+        emitSelectionChange(ctx.editor);
+        syncCursorToAwareness(ctx.editor);
       },
     },
-    onSelectionUpdate(ctx) {
-      emitSelectionChange(ctx.editor);
-    },
-    onTransaction(ctx) {
-      emitSelectionChange(ctx.editor);
-    },
-  });
+    [extensionsKey]
+  );
 
   useEffect(() => {
     props.onEditorReady(editor ?? null);
@@ -88,6 +133,11 @@ export function CollabEditor(props: Props) {
       if (notifySelectionFrameRef.current != null) {
         cancelAnimationFrame(notifySelectionFrameRef.current);
       }
+
+      const manager = (window as any).__editorManager;
+      if (manager && typeof manager.clearCursor === "function") {
+        manager.clearCursor();
+      }
     };
   }, []);
 
@@ -99,5 +149,5 @@ export function CollabEditor(props: Props) {
     );
   }
 
-  return <EditorContent editor={editor} />;
+  return <EditorContent key={extensionsKey} editor={editor} />;
 }
