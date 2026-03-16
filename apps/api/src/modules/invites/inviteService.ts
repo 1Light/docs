@@ -37,7 +37,7 @@ function addDays(days: number) {
 
 function buildAcceptInviteLink(rawToken: string) {
   const baseUrl = process.env.APP_BASE_URL ?? "http://localhost:5173";
-  return `${baseUrl}/invites/accept?token=${encodeURIComponent(rawToken)}`;
+  return `${baseUrl}/invite/document/${encodeURIComponent(rawToken)}`;
 }
 
 /**

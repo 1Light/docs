@@ -122,7 +122,7 @@ export const inviteController = {
         select: { name: true },
       });
 
-      const inviteLink = `${WEB_APP_URL}/invite/org?token=${rawToken}`;
+      const inviteLink = `${WEB_APP_URL}/invite/org/${encodeURIComponent(rawToken)}`;
 
       await emailService.sendOrgInvite({
         to: normalizedEmail,
