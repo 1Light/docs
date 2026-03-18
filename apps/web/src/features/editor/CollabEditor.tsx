@@ -73,7 +73,6 @@ export function CollabEditor(props: Props) {
   const editor = useEditor(
     {
       extensions: props.extensions,
-      content: "",
       autofocus: false,
       editorProps: {
         attributes: {

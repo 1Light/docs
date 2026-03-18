@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
 import HtmlToDocx from "@turbodocx/html-to-docx";
-import htmlPdf from "html-pdf-node";
+import puppeteer from "puppeteer";
 
 import { ERROR_CODES } from "@repo/contracts";
 import { documentRepo } from "./documentRepo";
@@ -13,21 +13,6 @@ const EXPORT_DIR = process.env.EXPORT_DIR || path.join(process.cwd(), "exports")
 const BASE_URL = process.env.EXPORT_BASE_URL || "http://localhost:4000";
 
 type ExportFormat = "pdf" | "docx";
-
-type HtmlPdfGeneratePdf = (
-  file: { content: string },
-  options: {
-    format: string;
-    printBackground: boolean;
-    margin: {
-      top: string;
-      right: string;
-      bottom: string;
-      left: string;
-    };
-    args?: string[];
-  }
-) => Promise<Buffer | Uint8Array | ArrayBuffer>;
 
 type HtmlToDocxFn = (
   html: string,
@@ -45,7 +30,6 @@ type HtmlToDocxFn = (
   footerHtml?: string
 ) => Promise<Buffer | Uint8Array | ArrayBuffer>;
 
-const generatePdf = (htmlPdf as unknown as { generatePdf: HtmlPdfGeneratePdf }).generatePdf;
 const htmlToDocx = HtmlToDocx as unknown as HtmlToDocxFn;
 
 async function ensureExportDir() {
@@ -99,9 +83,7 @@ function wrapHtmlDocument(params: { title: string; bodyHtml: string }) {
         margin: 20mm 16mm;
       }
 
-      * {
-        box-sizing: border-box;
-      }
+      * { box-sizing: border-box; }
 
       html, body {
         padding: 0;
@@ -113,25 +95,12 @@ function wrapHtmlDocument(params: { title: string; bodyHtml: string }) {
         font-size: 12pt;
       }
 
-      body {
-        padding: 0;
-      }
-
-      .document-shell {
-        width: 100%;
-      }
-
-      .document-content {
-        width: 100%;
-      }
-
       .document-content h1,
       .document-content h2,
       .document-content h3,
       .document-content h4,
       .document-content h5,
       .document-content h6 {
-        color: #111827;
         line-height: 1.3;
         margin-top: 1.2em;
         margin-bottom: 0.5em;
@@ -141,18 +110,11 @@ function wrapHtmlDocument(params: { title: string; bodyHtml: string }) {
       .document-content h2 { font-size: 17pt; }
       .document-content h3 { font-size: 15pt; }
 
-      .document-content p {
-        margin: 0 0 0.9em 0;
-      }
+      .document-content p { margin: 0 0 0.9em 0; }
 
       .document-content ul,
       .document-content ol {
         margin: 0 0 1em 1.4em;
-        padding: 0;
-      }
-
-      .document-content li {
-        margin: 0.2em 0;
       }
 
       .document-content blockquote {
@@ -168,13 +130,7 @@ function wrapHtmlDocument(params: { title: string; bodyHtml: string }) {
         background: #f3f4f6;
         border: 1px solid #e5e7eb;
         border-radius: 8px;
-        padding: 12px 14px;
-        overflow: hidden;
-      }
-
-      .document-content code {
-        white-space: pre-wrap;
-        word-break: break-word;
+        padding: 12px;
       }
 
       .document-content img {
@@ -191,9 +147,7 @@ function wrapHtmlDocument(params: { title: string; bodyHtml: string }) {
       .document-content th,
       .document-content td {
         border: 1px solid #d1d5db;
-        padding: 8px 10px;
-        vertical-align: top;
-        text-align: left;
+        padding: 8px;
       }
 
       .document-content hr {
@@ -204,32 +158,46 @@ function wrapHtmlDocument(params: { title: string; bodyHtml: string }) {
     </style>
   </head>
   <body>
-    <div class="document-shell">
-      <div class="document-content">
-        ${bodyHtml}
-      </div>
+    <div class="document-content">
+      ${bodyHtml}
     </div>
   </body>
 </html>`;
 }
 
 async function buildPdfBuffer(html: string) {
-  const file = { content: html };
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+    ],
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+  });
 
-  const options = {
-    format: "A4",
-    printBackground: true,
-    margin: {
-      top: "12mm",
-      right: "12mm",
-      bottom: "12mm",
-      left: "12mm",
-    },
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
-  };
+  try {
+    const page = await browser.newPage();
 
-  const out = await generatePdf(file, options);
-  return toBuffer(out);
+    await page.setContent(html, {
+      waitUntil: "networkidle0",
+    });
+
+    const pdf = await page.pdf({
+      format: "A4",
+      printBackground: true,
+      margin: {
+        top: "12mm",
+        right: "12mm",
+        bottom: "12mm",
+        left: "12mm",
+      },
+    });
+
+    return Buffer.from(pdf);
+  } finally {
+    await browser.close();
+  }
 }
 
 async function buildDocxBuffer(title: string, html: string) {
@@ -253,9 +221,6 @@ async function buildDocxBuffer(title: string, html: string) {
 }
 
 export const exportService = {
-  /**
-   * Export a document to PDF or DOCX.
-   */
   async exportDocument(params: {
     documentId: string;
     format: ExportFormat;
@@ -292,10 +257,8 @@ export const exportService = {
 
     await fs.writeFile(filepath, buffer);
 
-    const downloadUrl = `${BASE_URL}/exports/${filename}`;
-
     return {
-      downloadUrl,
+      downloadUrl: `${BASE_URL}/exports/${filename}`,
       format: params.format,
       filename,
     };

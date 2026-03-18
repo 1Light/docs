@@ -175,9 +175,7 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
   });
 
   useEffect(() => {
-    const myLiveColor =
-      presenceUsers.find((u) => u.userId === me.id)?.color?.trim() || null;
-
+    const myLiveColor = presenceUsers.find((u) => u.userId === me.id)?.color?.trim() || null;
     onCurrentUserColorChange?.(myLiveColor);
   }, [presenceUsers, me.id, onCurrentUserColorChange]);
 
@@ -243,9 +241,8 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
     clearSeedTimers();
 
     const html = (initialHtmlRef.current || "").trim();
-    const role = docRoleRef.current;
 
-    if (html.length > 0 && canEdit(role)) {
+    if (html.length > 0) {
       const trySeed = () => {
         try {
           if (!canSeedRef.current) return;

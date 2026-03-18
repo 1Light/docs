@@ -124,7 +124,6 @@ export function useCollabEditorSession({
     };
 
     const onSocketConnect = () => {
-      initialSyncDoneRef.current = true;
       if (documentId) void refreshRoleNow(documentId);
       scheduleRefreshCommentSummary();
     };
@@ -142,7 +141,7 @@ export function useCollabEditorSession({
         managerRef.current?.setReadOnlyState(true);
       },
       onReconnected: () => {
-        initialSyncDoneRef.current = true;
+        initialSyncDoneRef.current = false;
         setIsConnected(true);
         setBanner(null);
         if (documentId) void refreshRoleNow(documentId);
@@ -212,7 +211,6 @@ export function useCollabEditorSession({
 
     presenceRef.current.join(documentId);
     mgr.start(documentId);
-    initialSyncDoneRef.current = true;
 
     selectionTimerRef.current = window.setInterval(() => {
       const cur = selectionRef.current;

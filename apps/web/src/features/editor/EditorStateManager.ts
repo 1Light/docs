@@ -7,6 +7,7 @@ import CollaborationCaret from "@tiptap/extension-collaboration-caret";
 
 import { getCollaborationColor } from "../presence/colorPalette";
 import { tiptapExtensions, renderCollaborationCursor } from "./tiptapExtensions";
+
 const DEBUG_EDITOR = false;
 
 function u8ToArr(u8: Uint8Array): number[] {
@@ -100,6 +101,7 @@ export class EditorStateManager {
 
   private isDocJoined = false;
   private pendingJoinDocId: string | null = null;
+  private hasCompletedInitialSync = false;
 
   private onSyncStep2?: (payload: { documentId: string; update: number[] }) => void;
   private onRemoteDocUpdate?: (payload: { documentId: string; update: number[] }) => void;
@@ -122,11 +124,12 @@ export class EditorStateManager {
     this.awareness = new Awareness(this.ydoc);
     this.providerBridge = new AwarenessProviderBridge(this.awareness);
 
-    if (DEBUG_EDITOR) console.log("[EditorStateManager] constructor", {
-      userId: this.user.id,
-      name: this.user.name,
-      ydocGuid: this.ydoc.guid,
-    });
+    if (DEBUG_EDITOR)
+      console.log("[EditorStateManager] constructor", {
+        userId: this.user.id,
+        name: this.user.name,
+        ydocGuid: this.ydoc.guid,
+      });
 
     this.setLocalAwarenessUser();
     this.bindDocHandlers();
@@ -155,13 +158,14 @@ export class EditorStateManager {
       },
     });
 
-    if (DEBUG_EDITOR) console.log("[EditorStateManager] setLocalAwarenessUser", {
-      documentId: this.documentId,
-      userId: this.user.id,
-      color: this.user.color,
-      ydocGuid: this.ydoc.guid,
-      states: this.dumpAwarenessStates(),
-    });
+    if (DEBUG_EDITOR)
+      console.log("[EditorStateManager] setLocalAwarenessUser", {
+        documentId: this.documentId,
+        userId: this.user.id,
+        color: this.user.color,
+        ydocGuid: this.ydoc.guid,
+        states: this.dumpAwarenessStates(),
+      });
   }
 
   updateCursor(anchor: number, head: number) {
@@ -183,14 +187,20 @@ export class EditorStateManager {
       },
     });
 
-    if (DEBUG_EDITOR) console.log("[EditorStateManager] updateCursor", {
-      documentId: this.documentId,
-      anchor: nextAnchor,
-      head: nextHead,
-      ydocGuid: this.ydoc.guid,
-    });
+    if (DEBUG_EDITOR)
+      console.log("[EditorStateManager] updateCursor", {
+        documentId: this.documentId,
+        anchor: nextAnchor,
+        head: nextHead,
+        ydocGuid: this.ydoc.guid,
+      });
 
-    if (DEBUG_EDITOR) console.log("[EditorStateManager] local awareness states after updateCursor", this.dumpAwarenessStates());
+    if (DEBUG_EDITOR) {
+      console.log(
+        "[EditorStateManager] local awareness states after updateCursor",
+        this.dumpAwarenessStates()
+      );
+    }
   }
 
   clearCursor() {
@@ -201,11 +211,12 @@ export class EditorStateManager {
       cursor: null,
     });
 
-    if (DEBUG_EDITOR) console.log("[EditorStateManager] clearCursor", {
-      documentId: this.documentId,
-      ydocGuid: this.ydoc.guid,
-      states: this.dumpAwarenessStates(),
-    });
+    if (DEBUG_EDITOR)
+      console.log("[EditorStateManager] clearCursor", {
+        documentId: this.documentId,
+        ydocGuid: this.ydoc.guid,
+        states: this.dumpAwarenessStates(),
+      });
   }
 
   setUserColor(color?: string) {
@@ -232,16 +243,18 @@ export class EditorStateManager {
     const clients = Array.from(this.awareness.getStates().keys());
     const update = encodeAwarenessUpdate(this.awareness, clients);
 
-    if (DEBUG_EDITOR) console.log("[EditorStateManager] setUserColor", {
-      documentId: this.documentId,
-      userId: this.user.id,
-      nextColor,
-      clients,
-      socketConnected: this.socket.connected,
-      isDocJoined: this.isDocJoined,
-      ydocGuid: this.ydoc.guid,
-      states: this.dumpAwarenessStates(),
-    });
+    if (DEBUG_EDITOR)
+      console.log("[EditorStateManager] setUserColor", {
+        documentId: this.documentId,
+        userId: this.user.id,
+        nextColor,
+        clients,
+        socketConnected: this.socket.connected,
+        isDocJoined: this.isDocJoined,
+        hasCompletedInitialSync: this.hasCompletedInitialSync,
+        ydocGuid: this.ydoc.guid,
+        states: this.dumpAwarenessStates(),
+      });
 
     if (this.documentId && this.socket.connected) {
       this.socket.emit("yjs:awareness_update", {
@@ -255,57 +268,74 @@ export class EditorStateManager {
   }
 
   private bindDocHandlers() {
-    if (DEBUG_EDITOR) console.log("[EditorStateManager] bindDocHandlers", {
-      documentId: this.documentId,
-      ydocGuid: this.ydoc.guid,
-    });
-
-    this.onDocUpdate = (update: Uint8Array, origin: unknown) => {
-      if (DEBUG_EDITOR) console.log("[EditorStateManager] ydoc local update observed", {
+    if (DEBUG_EDITOR)
+      console.log("[EditorStateManager] bindDocHandlers", {
         documentId: this.documentId,
-        updateBytes: update.length,
-        origin,
-        socketConnected: this.socket.connected,
-        isDocJoined: this.isDocJoined,
         ydocGuid: this.ydoc.guid,
       });
 
-      if (origin === "remote") {
-        if (DEBUG_EDITOR) console.log("[EditorStateManager] skipped local emit: remote origin", {
+    this.onDocUpdate = (update: Uint8Array, origin: unknown) => {
+      if (DEBUG_EDITOR)
+        console.log("[EditorStateManager] ydoc local update observed", {
           documentId: this.documentId,
+          updateBytes: update.length,
+          origin,
+          socketConnected: this.socket.connected,
+          isDocJoined: this.isDocJoined,
+          hasCompletedInitialSync: this.hasCompletedInitialSync,
           ydocGuid: this.ydoc.guid,
         });
+
+      if (origin === "remote") {
+        if (DEBUG_EDITOR)
+          console.log("[EditorStateManager] skipped local emit: remote origin", {
+            documentId: this.documentId,
+            ydocGuid: this.ydoc.guid,
+          });
         return;
       }
 
       if (!this.documentId) {
-        if (DEBUG_EDITOR) console.log("[EditorStateManager] skipped local emit: no documentId", {
-          ydocGuid: this.ydoc.guid,
-        });
+        if (DEBUG_EDITOR)
+          console.log("[EditorStateManager] skipped local emit: no documentId", {
+            ydocGuid: this.ydoc.guid,
+          });
         return;
       }
 
       if (!this.socket.connected) {
-        if (DEBUG_EDITOR) console.log("[EditorStateManager] skipped local emit: socket disconnected", {
-          documentId: this.documentId,
-          ydocGuid: this.ydoc.guid,
-        });
+        if (DEBUG_EDITOR)
+          console.log("[EditorStateManager] skipped local emit: socket disconnected", {
+            documentId: this.documentId,
+            ydocGuid: this.ydoc.guid,
+          });
         return;
       }
 
       if (!this.isDocJoined) {
-        if (DEBUG_EDITOR) console.log("[EditorStateManager] skipped local emit: doc not joined", {
-          documentId: this.documentId,
-          ydocGuid: this.ydoc.guid,
-        });
+        if (DEBUG_EDITOR)
+          console.log("[EditorStateManager] skipped local emit: doc not joined", {
+            documentId: this.documentId,
+            ydocGuid: this.ydoc.guid,
+          });
         return;
       }
 
-      if (DEBUG_EDITOR) console.log("[EditorStateManager] emitting yjs:update", {
-        documentId: this.documentId,
-        updateBytes: update.length,
-        ydocGuid: this.ydoc.guid,
-      });
+      if (!this.hasCompletedInitialSync) {
+        if (DEBUG_EDITOR)
+          console.log("[EditorStateManager] skipped local emit: initial sync not completed", {
+            documentId: this.documentId,
+            ydocGuid: this.ydoc.guid,
+          });
+        return;
+      }
+
+      if (DEBUG_EDITOR)
+        console.log("[EditorStateManager] emitting yjs:update", {
+          documentId: this.documentId,
+          updateBytes: update.length,
+          ydocGuid: this.ydoc.guid,
+        });
 
       this.socket.emit("yjs:update", {
         documentId: this.documentId,
@@ -315,17 +345,18 @@ export class EditorStateManager {
     this.ydoc.on("update", this.onDocUpdate);
 
     this.onAwarenessLocal = (event: AwarenessChange, origin: unknown) => {
-      if (DEBUG_EDITOR) console.log("[EditorStateManager] awareness local update observed", {
-        documentId: this.documentId,
-        origin,
-        added: event.added,
-        updated: event.updated,
-        removed: event.removed,
-        socketConnected: this.socket.connected,
-        isDocJoined: this.isDocJoined,
-        ydocGuid: this.ydoc.guid,
-        states: this.dumpAwarenessStates(),
-      });
+      if (DEBUG_EDITOR)
+        console.log("[EditorStateManager] awareness local update observed", {
+          documentId: this.documentId,
+          origin,
+          added: event.added,
+          updated: event.updated,
+          removed: event.removed,
+          socketConnected: this.socket.connected,
+          isDocJoined: this.isDocJoined,
+          ydocGuid: this.ydoc.guid,
+          states: this.dumpAwarenessStates(),
+        });
 
       if (origin === "remote") return;
       if (!this.documentId) return;
@@ -335,11 +366,12 @@ export class EditorStateManager {
       const { added, updated, removed } = event;
       const update = encodeAwarenessUpdate(this.awareness, [...added, ...updated, ...removed]);
 
-      if (DEBUG_EDITOR) console.log("[EditorStateManager] emitting yjs:awareness_update", {
-        documentId: this.documentId,
-        stateBytes: update.length,
-        ydocGuid: this.ydoc.guid,
-      });
+      if (DEBUG_EDITOR)
+        console.log("[EditorStateManager] emitting yjs:awareness_update", {
+          documentId: this.documentId,
+          stateBytes: update.length,
+          ydocGuid: this.ydoc.guid,
+        });
 
       this.socket.emit("yjs:awareness_update", {
         documentId: this.documentId,
@@ -353,10 +385,11 @@ export class EditorStateManager {
   }
 
   private unbindDocHandlers() {
-    if (DEBUG_EDITOR) console.log("[EditorStateManager] unbindDocHandlers", {
-      documentId: this.documentId,
-      ydocGuid: this.ydoc.guid,
-    });
+    if (DEBUG_EDITOR)
+      console.log("[EditorStateManager] unbindDocHandlers", {
+        documentId: this.documentId,
+        ydocGuid: this.ydoc.guid,
+      });
 
     if (this.onDocUpdate) {
       this.ydoc.off("update", this.onDocUpdate);
@@ -367,10 +400,11 @@ export class EditorStateManager {
   }
 
   private resetYDoc() {
-    if (DEBUG_EDITOR) console.log("[EditorStateManager] resetYDoc start", {
-      documentId: this.documentId,
-      oldYdocGuid: this.ydoc.guid,
-    });
+    if (DEBUG_EDITOR)
+      console.log("[EditorStateManager] resetYDoc start", {
+        documentId: this.documentId,
+        oldYdocGuid: this.ydoc.guid,
+      });
 
     this.unbindDocHandlers();
 
@@ -390,20 +424,22 @@ export class EditorStateManager {
     this.awareness = new Awareness(this.ydoc);
     this.providerBridge = new AwarenessProviderBridge(this.awareness);
 
-    if (DEBUG_EDITOR) console.log("[EditorStateManager] resetYDoc created new doc", {
-      documentId: this.documentId,
-      newYdocGuid: this.ydoc.guid,
-    });
+    if (DEBUG_EDITOR)
+      console.log("[EditorStateManager] resetYDoc created new doc", {
+        documentId: this.documentId,
+        newYdocGuid: this.ydoc.guid,
+      });
 
     this.setLocalAwarenessUser();
     this.bindDocHandlers();
   }
 
   getExtensions() {
-    if (DEBUG_EDITOR) console.log("[EditorStateManager] getExtensions", {
-      documentId: this.documentId,
-      ydocGuid: this.ydoc.guid,
-    });
+    if (DEBUG_EDITOR)
+      console.log("[EditorStateManager] getExtensions", {
+        documentId: this.documentId,
+        ydocGuid: this.ydoc.guid,
+      });
 
     return [
       ...tiptapExtensions,
@@ -436,11 +472,12 @@ export class EditorStateManager {
 
     const stateVector = Y.encodeStateVector(this.ydoc);
 
-    if (DEBUG_EDITOR) console.log("[EditorStateManager] requestSync", {
-      documentId: this.documentId,
-      stateVectorBytes: stateVector.length,
-      ydocGuid: this.ydoc.guid,
-    });
+    if (DEBUG_EDITOR)
+      console.log("[EditorStateManager] requestSync", {
+        documentId: this.documentId,
+        stateVectorBytes: stateVector.length,
+        ydocGuid: this.ydoc.guid,
+      });
 
     this.socket.emit("yjs:sync_step1", {
       documentId: this.documentId,
@@ -454,11 +491,13 @@ export class EditorStateManager {
 
     this.isDocJoined = false;
     this.pendingJoinDocId = this.documentId;
+    this.hasCompletedInitialSync = false;
 
-    if (DEBUG_EDITOR) console.log("[EditorStateManager] requestJoin", {
-      documentId: this.documentId,
-      ydocGuid: this.ydoc.guid,
-    });
+    if (DEBUG_EDITOR)
+      console.log("[EditorStateManager] requestJoin", {
+        documentId: this.documentId,
+        ydocGuid: this.ydoc.guid,
+      });
 
     this.socket.emit("join_document", { documentId: this.documentId });
   }
@@ -470,27 +509,36 @@ export class EditorStateManager {
     if (DEBUG_EDITOR) console.log("[EditorStateManager] bindOnce");
 
     this.onSyncStep2 = (payload) => {
-      if (DEBUG_EDITOR) console.log("[EditorStateManager] received yjs:sync_step2", {
-        currentDocumentId: this.documentId,
-        payloadDocumentId: payload?.documentId,
-        updateBytes: Array.isArray(payload?.update) ? payload.update.length : null,
-        ydocGuid: this.ydoc.guid,
-      });
+      if (DEBUG_EDITOR)
+        console.log("[EditorStateManager] received yjs:sync_step2", {
+          currentDocumentId: this.documentId,
+          payloadDocumentId: payload?.documentId,
+          updateBytes: Array.isArray(payload?.update) ? payload.update.length : null,
+          ydocGuid: this.ydoc.guid,
+        });
 
       if (!this.documentId || payload.documentId !== this.documentId) return;
       if (!Array.isArray(payload.update)) return;
 
       Y.applyUpdate(this.ydoc, arrToU8(payload.update), "remote");
+      this.hasCompletedInitialSync = true;
+
+      if (DEBUG_EDITOR)
+        console.log("[EditorStateManager] initial sync completed", {
+          documentId: this.documentId,
+          ydocGuid: this.ydoc.guid,
+        });
     };
     this.socket.on("yjs:sync_step2", this.onSyncStep2);
 
     this.onRemoteDocUpdate = (payload) => {
-      if (DEBUG_EDITOR) console.log("[EditorStateManager] received remote yjs:update", {
-        currentDocumentId: this.documentId,
-        payloadDocumentId: payload?.documentId,
-        updateBytes: Array.isArray(payload?.update) ? payload.update.length : null,
-        ydocGuid: this.ydoc.guid,
-      });
+      if (DEBUG_EDITOR)
+        console.log("[EditorStateManager] received remote yjs:update", {
+          currentDocumentId: this.documentId,
+          payloadDocumentId: payload?.documentId,
+          updateBytes: Array.isArray(payload?.update) ? payload.update.length : null,
+          ydocGuid: this.ydoc.guid,
+        });
 
       if (!this.documentId || payload.documentId !== this.documentId) return;
       if (!Array.isArray(payload.update)) return;
@@ -500,30 +548,37 @@ export class EditorStateManager {
     this.socket.on("yjs:update", this.onRemoteDocUpdate);
 
     this.onAwarenessRemote = (payload) => {
-      if (DEBUG_EDITOR) console.log("[EditorStateManager] received remote yjs:awareness_update", {
-        currentDocumentId: this.documentId,
-        payloadDocumentId: payload?.documentId,
-        stateBytes: Array.isArray(payload?.states) ? payload.states.length : null,
-        ydocGuid: this.ydoc.guid,
-      });
+      if (DEBUG_EDITOR)
+        console.log("[EditorStateManager] received remote yjs:awareness_update", {
+          currentDocumentId: this.documentId,
+          payloadDocumentId: payload?.documentId,
+          stateBytes: Array.isArray(payload?.states) ? payload.states.length : null,
+          ydocGuid: this.ydoc.guid,
+        });
 
       if (!this.documentId || payload.documentId !== this.documentId) return;
       if (!Array.isArray(payload.states)) return;
 
       applyAwarenessUpdate(this.awareness, arrToU8(payload.states), "remote");
-      if (DEBUG_EDITOR) console.log("[EditorStateManager] awareness states after remote apply", this.dumpAwarenessStates());
+      if (DEBUG_EDITOR) {
+        console.log(
+          "[EditorStateManager] awareness states after remote apply",
+          this.dumpAwarenessStates()
+        );
+      }
     };
     this.socket.on("yjs:awareness_update", this.onAwarenessRemote);
 
     this.onDocumentJoined = (payload) => {
       const ackDocId = payload?.documentId?.trim?.() ?? payload?.documentId;
 
-      if (DEBUG_EDITOR) console.log("[EditorStateManager] received document:joined", {
-        currentDocumentId: this.documentId,
-        ackDocId,
-        pendingJoinDocId: this.pendingJoinDocId,
-        ydocGuid: this.ydoc.guid,
-      });
+      if (DEBUG_EDITOR)
+        console.log("[EditorStateManager] received document:joined", {
+          currentDocumentId: this.documentId,
+          ackDocId,
+          pendingJoinDocId: this.pendingJoinDocId,
+          ydocGuid: this.ydoc.guid,
+        });
 
       if (!ackDocId) return;
       if (this.pendingJoinDocId !== ackDocId) return;
@@ -531,6 +586,7 @@ export class EditorStateManager {
 
       this.pendingJoinDocId = null;
       this.isDocJoined = true;
+      this.hasCompletedInitialSync = false;
 
       this.setLocalAwarenessUser();
       this.requestSync();
@@ -538,10 +594,11 @@ export class EditorStateManager {
     this.socket.on("document:joined", this.onDocumentJoined);
 
     this.onSocketConnect = () => {
-      if (DEBUG_EDITOR) console.log("[EditorStateManager] socket connect handler", {
-        documentId: this.documentId,
-        ydocGuid: this.ydoc.guid,
-      });
+      if (DEBUG_EDITOR)
+        console.log("[EditorStateManager] socket connect handler", {
+          documentId: this.documentId,
+          ydocGuid: this.ydoc.guid,
+        });
 
       if (!this.documentId) return;
       this.requestJoin();
@@ -552,11 +609,12 @@ export class EditorStateManager {
   start(documentId: string) {
     if (this.destroyed) return;
 
-    if (DEBUG_EDITOR) console.log("[EditorStateManager] start", {
-      previousDocumentId: this.documentId,
-      nextDocumentId: documentId,
-      ydocGuid: this.ydoc.guid,
-    });
+    if (DEBUG_EDITOR)
+      console.log("[EditorStateManager] start", {
+        previousDocumentId: this.documentId,
+        nextDocumentId: documentId,
+        ydocGuid: this.ydoc.guid,
+      });
 
     this.bindOnce();
 
@@ -565,6 +623,7 @@ export class EditorStateManager {
 
     this.isDocJoined = false;
     this.pendingJoinDocId = null;
+    this.hasCompletedInitialSync = false;
 
     if (switchingDocs) {
       this.resetYDoc();
@@ -582,14 +641,16 @@ export class EditorStateManager {
 
     const docId = this.documentId;
 
-    if (DEBUG_EDITOR) console.log("[EditorStateManager] stop", {
-      documentId: docId,
-      ydocGuid: this.ydoc.guid,
-    });
+    if (DEBUG_EDITOR)
+      console.log("[EditorStateManager] stop", {
+        documentId: docId,
+        ydocGuid: this.ydoc.guid,
+      });
 
     this.documentId = null;
     this.isDocJoined = false;
     this.pendingJoinDocId = null;
+    this.hasCompletedInitialSync = false;
 
     if (this.socket.connected) {
       this.socket.emit("leave_document", { documentId: docId });
@@ -603,10 +664,11 @@ export class EditorStateManager {
     if (this.destroyed) return;
     this.destroyed = true;
 
-    if (DEBUG_EDITOR) console.log("[EditorStateManager] destroy", {
-      documentId: this.documentId,
-      ydocGuid: this.ydoc.guid,
-    });
+    if (DEBUG_EDITOR)
+      console.log("[EditorStateManager] destroy", {
+        documentId: this.documentId,
+        ydocGuid: this.ydoc.guid,
+      });
 
     this.stop();
 
@@ -636,11 +698,12 @@ export class EditorStateManager {
   }
 
   setReadOnlyState(isReadOnly: boolean) {
-    if (DEBUG_EDITOR) console.log("[EditorStateManager] setReadOnlyState", {
-      documentId: this.documentId,
-      isReadOnly,
-      ydocGuid: this.ydoc.guid,
-    });
+    if (DEBUG_EDITOR)
+      console.log("[EditorStateManager] setReadOnlyState", {
+        documentId: this.documentId,
+        isReadOnly,
+        ydocGuid: this.ydoc.guid,
+      });
 
     const prev = this.awareness.getLocalState() ?? {};
 
