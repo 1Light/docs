@@ -335,10 +335,6 @@ export function Login({
                     : "New here? Create your workspace"}
                 </button>
               )}
-
-              <div className="pt-1 text-xs text-gray-500">
-                Tip: use seeded accounts from your Prisma seed.
-              </div>
             </form>
           </Card>
 
