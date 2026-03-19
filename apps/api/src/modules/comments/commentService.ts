@@ -67,6 +67,7 @@ export const commentService = {
 
     let anchorStart: number | null = null;
     let anchorEnd: number | null = null;
+    let quote: string | null = null;
     let parentCommentId: string | null = null;
 
     if (params.parentCommentId) {
@@ -82,12 +83,14 @@ export const commentService = {
       parentCommentId = parent.id;
       anchorStart = parent.anchorStart ?? null;
       anchorEnd = parent.anchorEnd ?? null;
+      quote = (parent as any).quote ?? null;
     } else {
       const start = params.anchor?.start;
       const end = params.anchor?.end;
 
       anchorStart = typeof start === "number" ? Math.max(0, start) : null;
       anchorEnd = typeof end === "number" ? Math.max(0, end) : null;
+      quote = typeof params.quote === "string" ? params.quote.trim() : null;
 
       if ((anchorStart === null) !== (anchorEnd === null)) {
         throw { code: ERROR_CODES.INVALID_REQUEST, message: "anchor must include start and end" };
@@ -95,6 +98,10 @@ export const commentService = {
 
       if (anchorStart !== null && anchorEnd !== null && anchorEnd <= anchorStart) {
         throw { code: ERROR_CODES.INVALID_REQUEST, message: "anchor end must be greater than start" };
+      }
+
+      if ((anchorStart !== null || anchorEnd !== null) && !quote) {
+        throw { code: ERROR_CODES.INVALID_REQUEST, message: "quote is required for anchored comments" };
       }
     }
 
@@ -105,6 +112,7 @@ export const commentService = {
       body,
       anchorStart,
       anchorEnd,
+      quote,
     });
 
     await auditLogService.logAction({

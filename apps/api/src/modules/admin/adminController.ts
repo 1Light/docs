@@ -80,7 +80,9 @@ function buildOrgInviteDto(invite: {
     invitedByEmail: invite.invitedBy?.email ?? undefined,
     expiresAt: invite.expiresAt.toISOString(),
     createdAt: invite.createdAt.toISOString(),
-    inviteLink: invite.rawToken ? `${WEB_APP_URL}/invite/org?token=${invite.rawToken}` : undefined,
+    inviteLink: invite.rawToken
+      ? `${WEB_APP_URL}/invite/org/${encodeURIComponent(invite.rawToken)}`
+      : undefined,
   };
 }
 
@@ -593,7 +595,7 @@ export const adminController = {
         },
       });
 
-      const inviteLink = `${WEB_APP_URL}/invite/org?token=${rawToken}`;
+      const inviteLink = `${WEB_APP_URL}/invite/org/${encodeURIComponent(rawToken)}`;
 
       await emailService.sendOrgInvite({
         to: email,
@@ -702,7 +704,7 @@ export const adminController = {
         },
       });
 
-      const inviteLink = `${WEB_APP_URL}/invite/org?token=${rawToken}`;
+      const inviteLink = `${WEB_APP_URL}/invite/org/${encodeURIComponent(rawToken)}`;
 
       await emailService.sendOrgInvite({
         to: updated.email,

@@ -228,6 +228,106 @@ function mapOperationToPrisma(operation: AIOperation): PrismaAIOperation {
   }
 }
 
+function normalizeWhitespace(text: string): string {
+  return text.replace(/\r\n/g, "\n").replace(/\t/g, "  ").trim();
+}
+
+function dedupeBrokenTail(text: string): string {
+  const t = text.trim();
+  if (t.length < 20) return t;
+
+  const words = t.split(/\s+/);
+  if (words.length < 4) return t;
+
+  const last = words[words.length - 1];
+  const prev = words[words.length - 2];
+
+  if (
+    last.length > 6 &&
+    prev.length > 3 &&
+    last.toLowerCase().includes(prev.toLowerCase())
+  ) {
+    return words.slice(0, -1).join(" ");
+  }
+
+  return t;
+}
+
+function splitInlineBullets(text: string): string {
+  const normalized = normalizeWhitespace(text);
+
+  if (!normalized.includes("- ")) {
+    return dedupeBrokenTail(normalized);
+  }
+
+  const collapsed = normalized.replace(/\n+/g, " ").replace(/\s+/g, " ").trim();
+
+  const rawParts = collapsed
+    .split(/\s(?=-\s)/g)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (rawParts.length <= 1) {
+    return dedupeBrokenTail(normalized);
+  }
+
+  const bulletParts = rawParts.map((part) =>
+    part.startsWith("- ") ? part : `- ${part.replace(/^-\s*/, "")}`
+  );
+
+  return dedupeBrokenTail(bulletParts.join("\n"));
+}
+
+function cleanBulletOutput(text: string): string {
+  const split = splitInlineBullets(text);
+
+  const lines = split
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const cleanedLines = lines.map((line) => {
+    if (!line.startsWith("- ")) return line;
+    return `- ${line.replace(/^-\s*/, "").replace(/\s+/g, " ").trim()}`;
+  });
+
+  return dedupeBrokenTail(cleanedLines.join("\n")).trim();
+}
+
+function shouldNormalizeAsBullets(
+  operation: AIOperation,
+  parameters: {
+    summaryStyle?: string;
+    formatStyle?: string;
+  }
+): boolean {
+  return (
+    (operation === "summarize" && parameters.summaryStyle === "bullet_points") ||
+    (operation === "reformat" && parameters.formatStyle === "bullet_list")
+  );
+}
+
+function normalizeAppliedFinalText(
+  operation: AIOperation,
+  finalText: string,
+  parameters: {
+    summaryStyle?: string;
+    formatStyle?: string;
+  }
+): string {
+  const text = normalizeWhitespace(finalText);
+
+  if (!text) {
+    throw apiError(ERROR_CODES.INVALID_REQUEST, "finalText is required");
+  }
+
+  if (shouldNormalizeAsBullets(operation, parameters)) {
+    return cleanBulletOutput(text);
+  }
+
+  return dedupeBrokenTail(text);
+}
+
 export const aiJobService = {
   async createJob(params: CreateJobParams) {
     const doc = await documentRepo.findById(params.documentId);
@@ -334,20 +434,37 @@ export const aiJobService = {
       job.parameters && typeof job.parameters === "object"
         ? (job.parameters as {
             applyMode?: ApplyMode;
+            summaryStyle?: string;
+            formatStyle?: string;
           })
         : {};
 
     const applyMode: ApplyMode =
       jobParameters.applyMode === "insert_below" ? "insert_below" : "replace";
 
+    const normalizedFinalText = normalizeAppliedFinalText(
+      job.operation === PrismaAIOperation.rewrite
+        ? "enhance"
+        : job.operation === PrismaAIOperation.summarize
+          ? "summarize"
+          : job.operation === PrismaAIOperation.translate
+            ? "translate"
+            : "reformat",
+      params.finalText,
+      {
+        summaryStyle: jobParameters.summaryStyle,
+        formatStyle: jobParameters.formatStyle,
+      }
+    );
+
     const newContent =
       applyMode === "insert_below"
-        ? insertBelowRange(doc.content, normalizedSelection.end, params.finalText)
+        ? insertBelowRange(doc.content, normalizedSelection.end, normalizedFinalText)
         : replaceRange(
             doc.content,
             normalizedSelection.start,
             normalizedSelection.end,
-            params.finalText
+            normalizedFinalText
           );
 
     const newVersion = await versionRepo.create({
@@ -363,7 +480,7 @@ export const aiJobService = {
     await aiJobApplicationRepo.create({
       aiJobId: job.id,
       appliedById: params.requesterId,
-      finalText: params.finalText,
+      finalText: normalizedFinalText,
       newVersionId: newVersion.id,
     });
 

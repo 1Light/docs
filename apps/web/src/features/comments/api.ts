@@ -1,5 +1,3 @@
-// apps/web/src/features/comments/comments.ts
-
 import { http } from "../../lib/http";
 
 export type CommentStatus = "open" | "resolved";
@@ -12,6 +10,7 @@ export type Comment = {
   authorEmail?: string;
   body: string;
   anchor?: { start: number; end: number };
+  quote?: string;
   parentCommentId?: string;
   replies?: Comment[];
   status: CommentStatus;

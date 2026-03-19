@@ -12,14 +12,30 @@ import { Card } from "../../components/ui/Card";
 import { Input } from "../../components/ui/Input";
 import { Badge } from "../../components/ui/Badge";
 
+type ApplyMode = "replace" | "insert_below";
+
+type FrozenSelection = {
+  start: number;
+  end: number;
+  text: string;
+  pmFrom: number;
+  pmTo: number;
+};
+
 type Props = {
   documentId: string;
-  selection: { start: number; end: number; text: string };
-  onApplied?: (result: { versionHeadId: string; updatedAt: string }) => void;
+  selection: FrozenSelection;
+  onApplied?: (result: {
+    versionHeadId: string;
+    updatedAt: string;
+    finalText: string;
+    applyMode: ApplyMode;
+    operation: AIOperation;
+    targetSelection: FrozenSelection;
+  }) => void;
 };
 
 type Mode = "idle" | "running" | "ready" | "error";
-type ApplyMode = "replace" | "insert_below";
 type EnhanceStyle = "clearer" | "concise" | "professional" | "formal";
 type SummaryStyle = "short_paragraph" | "bullet_points";
 type ReformatStyle =
@@ -37,7 +53,7 @@ type OperationConfig = {
 
 const DEFAULT_OPS: OperationConfig[] = [
   {
-    op: "enhance" as AIOperation,
+    op: "enhance",
     label: "Enhance writing",
     hint: "Improve clarity and tone while preserving meaning.",
     applyMode: "replace",
@@ -89,8 +105,85 @@ function clampPreview(text: string, max = 220) {
   return `${t.slice(0, Math.max(0, max - 1))}…`;
 }
 
+function normalizeWhitespace(text: string) {
+  return text.replace(/\r\n/g, "\n").replace(/\t/g, "  ").trim();
+}
+
+function dedupeBrokenTail(text: string) {
+  const t = text.trim();
+  if (t.length < 20) return t;
+
+  const words = t.split(/\s+/);
+  if (words.length < 4) return t;
+
+  const last = words[words.length - 1];
+  const prev = words[words.length - 2];
+
+  if (
+    last.length > 6 &&
+    prev.length > 3 &&
+    last.toLowerCase().includes(prev.toLowerCase())
+  ) {
+    return words.slice(0, -1).join(" ");
+  }
+
+  return t;
+}
+
+function splitInlineBullets(text: string) {
+  const normalized = normalizeWhitespace(text);
+
+  if (!normalized.includes("- ")) {
+    return dedupeBrokenTail(normalized);
+  }
+
+  const collapsed = normalized.replace(/\n+/g, " ").replace(/\s+/g, " ").trim();
+
+  const rawParts = collapsed
+    .split(/\s(?=-\s)/g)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (rawParts.length <= 1) {
+    return dedupeBrokenTail(normalized);
+  }
+
+  const bulletParts = rawParts.map((part) =>
+    part.startsWith("- ") ? part : `- ${part.replace(/^-\s*/, "")}`
+  );
+
+  return dedupeBrokenTail(bulletParts.join("\n"));
+}
+
+function cleanBulletOutput(text: string) {
+  const withSplitBullets = splitInlineBullets(text);
+
+  const lines = withSplitBullets
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const cleanedLines = lines.map((line) => {
+    if (!line.startsWith("- ")) return line;
+    return `- ${line.replace(/^-\s*/, "").replace(/\s+/g, " ").trim()}`;
+  });
+
+  return dedupeBrokenTail(cleanedLines.join("\n")).trim();
+}
+
+function shouldNormalizeAsBullets(
+  operation: AIOperation,
+  summaryStyle: SummaryStyle,
+  reformatStyle: ReformatStyle
+) {
+  return (
+    (operation === "summarize" && summaryStyle === "bullet_points") ||
+    (operation === "reformat" && reformatStyle === "bullet_list")
+  );
+}
+
 export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
-  const [operation, setOperation] = useState<AIOperation>("enhance" as AIOperation);
+  const [operation, setOperation] = useState<AIOperation>("enhance");
   const [enhanceStyle, setEnhanceStyle] = useState<EnhanceStyle>("clearer");
   const [summaryStyle, setSummaryStyle] = useState<SummaryStyle>("short_paragraph");
   const [language, setLanguage] = useState("Arabic");
@@ -103,6 +196,7 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
   const [finalText, setFinalText] = useState("");
 
   const pollTimerRef = useRef<number | null>(null);
+  const frozenSelectionRef = useRef<FrozenSelection | null>(null);
 
   const selectionLen = useMemo(
     () => Math.max(0, (selection?.end ?? 0) - (selection?.start ?? 0)),
@@ -146,11 +240,21 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
     }
   }
 
+  function normalizeSuggestionText(raw: string) {
+    const text = normalizeWhitespace(raw);
+
+    if (shouldNormalizeAsBullets(operation, summaryStyle, reformatStyle)) {
+      return cleanBulletOutput(text);
+    }
+
+    return dedupeBrokenTail(text);
+  }
+
   useEffect(() => {
     if (mode === "idle") return;
     reset();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selection.start, selection.end, selection.text]);
+  }, [selection.start, selection.end, selection.text, selection.pmFrom, selection.pmTo]);
 
   useEffect(() => {
     if (!job) return;
@@ -171,7 +275,7 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
         setJob(latest);
 
         if (latest.status === "succeeded") {
-          setFinalText(latest.result ?? "");
+          setFinalText(normalizeSuggestionText(latest.result ?? ""));
           setMode("ready");
           clearPollTimer();
           return;
@@ -199,6 +303,16 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
   async function run() {
     if (!canRun || isRunning) return;
 
+    const targetSelection: FrozenSelection = {
+      start: selection.start,
+      end: selection.end,
+      text: selection.text,
+      pmFrom: selection.pmFrom,
+      pmTo: selection.pmTo,
+    };
+
+    frozenSelectionRef.current = targetSelection;
+
     clearPollTimer();
     setError(null);
     setMode("running");
@@ -210,9 +324,9 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
         documentId,
         operation,
         selection: {
-          start: selection.start,
-          end: selection.end,
-          text: selection.text,
+          start: targetSelection.start,
+          end: targetSelection.end,
+          text: targetSelection.text,
         },
         parameters: {
           ...(operation === "enhance" ? { style: enhanceStyle } : {}),
@@ -226,7 +340,7 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
       setJob(created);
 
       if (created.status === "succeeded") {
-        setFinalText(created.result ?? "");
+        setFinalText(normalizeSuggestionText(created.result ?? ""));
         setMode("ready");
       } else if (created.status === "failed") {
         setError(created.error?.message ?? "AI job failed");
@@ -246,13 +360,31 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
     setError(null);
 
     try {
-      const out = await applyAIJob(job.jobId, finalText);
-      onApplied?.(out);
+      const cleanedFinalText = normalizeSuggestionText(finalText);
+      const out = await applyAIJob(job.jobId, cleanedFinalText);
+
+      const targetSelection =
+        frozenSelectionRef.current ?? {
+          start: selection.start,
+          end: selection.end,
+          text: selection.text,
+          pmFrom: selection.pmFrom,
+          pmTo: selection.pmTo,
+        };
+
+      onApplied?.({
+        ...out,
+        finalText: cleanedFinalText,
+        applyMode: activeOp.applyMode,
+        operation,
+        targetSelection,
+      });
 
       clearPollTimer();
       setJob(null);
       setMode("idle");
       setFinalText("");
+      frozenSelectionRef.current = null;
     } catch (e: any) {
       setError(e?.message ?? "Failed to apply suggestion");
       setMode("error");
@@ -270,6 +402,7 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
     setJob(null);
     setMode("idle");
     setFinalText("");
+    frozenSelectionRef.current = null;
   }
 
   return (

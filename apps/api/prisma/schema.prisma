@@ -244,6 +244,7 @@ model Comment {
   body            String
   anchorStart     Int?
   anchorEnd       Int?
+  quote           String?
   status          CommentStatus @default(open)
   resolvedBy      String?
   resolvedAt      DateTime?

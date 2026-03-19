@@ -28,6 +28,7 @@ export type CommentStatus = z.infer<typeof commentStatusSchema>;
 export const createCommentRequestSchema = z.object({
   body: z.string().min(1),
   anchor: commentAnchorSchema.optional(),
+  quote: z.string().min(1).optional(),
   parentCommentId: z.string().uuid().optional(),
 });
 
@@ -45,9 +46,10 @@ export const baseCommentResponseSchema = z.object({
   authorEmail: z.string().optional(),
   body: z.string(),
   anchor: commentAnchorSchema.optional(),
+  quote: z.string().optional(),
   parentCommentId: z.string().optional(),
   status: commentStatusSchema,
-  createdAt: z.string(), // ISO
+  createdAt: z.string(),
   updatedAt: z.string().optional(),
   resolvedBy: z.string().optional(),
   resolvedAt: z.string().optional(),

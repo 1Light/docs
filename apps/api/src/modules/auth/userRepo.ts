@@ -1,5 +1,3 @@
-// apps/api/src/modules/auth/userRepo.ts
-
 import { prisma } from "../../lib/prisma";
 import type { OrgRole } from "@repo/contracts";
 
@@ -19,6 +17,12 @@ export const userRepo = {
         email,
         isDeleted: false,
       },
+    });
+  },
+
+  async findAnyByEmail(email: string) {
+    return prisma.user.findUnique({
+      where: { email },
     });
   },
 

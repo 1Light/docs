@@ -13,7 +13,7 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 async function main() {
-  // Clean existing data (dev only): delete in dependency order
+  // Clean existing data (dev only)
   await prisma.auditLog.deleteMany();
   await prisma.aIJobApplication.deleteMany();
   await prisma.aIJob.deleteMany();
@@ -32,65 +32,31 @@ async function main() {
     data: { name: "Seed Org" },
   });
 
-  // Users
   const passwordHash = await bcrypt.hash("password123", 10);
 
-  // Org-level roles
+  // Users
   const orgOwner = await prisma.user.create({
-    data: {
-      name: "Org Owner",
-      email: "owner@org.com",
-      password: passwordHash,
-    },
+    data: { name: "Org Owner", email: "owner@org.com", password: passwordHash },
   });
 
   const orgAdmin = await prisma.user.create({
-    data: {
-      name: "Org Admin",
-      email: "admin@example.com",
-      password: passwordHash,
-    },
+    data: { name: "Org Admin", email: "admin@example.com", password: passwordHash },
   });
 
-  // Document-level ownership (separate concept)
   const docOwner = await prisma.user.create({
-    data: {
-      name: "Document Owner",
-      email: "owner@example.com",
-      password: passwordHash,
-    },
+    data: { name: "Document Owner", email: "owner@example.com", password: passwordHash },
   });
 
   const editor = await prisma.user.create({
-    data: {
-      name: "Editor User",
-      email: "editor@example.com",
-      password: passwordHash,
-    },
+    data: { name: "Editor User", email: "editor@example.com", password: passwordHash },
   });
 
   const commenter = await prisma.user.create({
-    data: {
-      name: "Commenter User",
-      email: "commenter@example.com",
-      password: passwordHash,
-    },
+    data: { name: "Commenter User", email: "commenter@example.com", password: passwordHash },
   });
 
   const viewer = await prisma.user.create({
-    data: {
-      name: "Viewer User",
-      email: "viewer@example.com",
-      password: passwordHash,
-    },
-  });
-
-  const redClover = await prisma.user.create({
-    data: {
-      name: "Red Clover",
-      email: "redclover1.618@gmail.com",
-      password: passwordHash,
-    },
+    data: { name: "Viewer User", email: "viewer@example.com", password: passwordHash },
   });
 
   // Memberships
@@ -102,7 +68,6 @@ async function main() {
       { orgId: org.id, userId: editor.id, orgRole: null },
       { orgId: org.id, userId: commenter.id, orgRole: null },
       { orgId: org.id, userId: viewer.id, orgRole: null },
-      { orgId: org.id, userId: redClover.id, orgRole: null },
     ],
   });
 
@@ -116,7 +81,6 @@ async function main() {
     },
   });
 
-  // Initial version snapshot
   const v1 = await prisma.documentVersion.create({
     data: {
       documentId: doc.id,
@@ -127,7 +91,6 @@ async function main() {
     },
   });
 
-  // Update document headVersionId
   await prisma.document.update({
     where: { id: doc.id },
     data: { headVersionId: v1.id },
@@ -159,12 +122,6 @@ async function main() {
         principalType: "user",
         principalId: viewer.id,
         role: DocumentRole.Viewer,
-      },
-      {
-        documentId: doc.id,
-        principalType: "user",
-        principalId: redClover.id,
-        role: DocumentRole.Editor,
       },
       {
         documentId: doc.id,
@@ -207,18 +164,6 @@ async function main() {
     },
   });
 
-  const redCloverReply = await prisma.comment.create({
-    data: {
-      documentId: doc.id,
-      authorId: redClover.id,
-      parentCommentId: ownerComment.id,
-      body: "Reply from Red Clover: I checked this and it looks good.",
-      anchorStart: ownerComment.anchorStart,
-      anchorEnd: ownerComment.anchorEnd,
-      status: CommentStatus.open,
-    },
-  });
-
   await prisma.comment.create({
     data: {
       documentId: doc.id,
@@ -231,7 +176,7 @@ async function main() {
     },
   });
 
-  // AI Job (example)
+  // AI Job
   const job = await prisma.aIJob.create({
     data: {
       documentId: doc.id,
@@ -255,7 +200,7 @@ async function main() {
     },
   });
 
-  // Audit logs (examples)
+  // Audit logs
   await prisma.auditLog.createMany({
     data: [
       {
@@ -274,24 +219,10 @@ async function main() {
       },
       {
         orgId: org.id,
-        userId: docOwner.id,
-        actionType: "PERMISSION_GRANTED",
-        documentId: doc.id,
-        metadata: { principalType: "user", principalId: redClover.id, role: "Editor" },
-      },
-      {
-        orgId: org.id,
         userId: commenter.id,
         actionType: "COMMENT_CREATED",
         documentId: doc.id,
         metadata: { commentId: commenterComment.id },
-      },
-      {
-        orgId: org.id,
-        userId: redClover.id,
-        actionType: "COMMENT_REPLY_CREATED",
-        documentId: doc.id,
-        metadata: { commentId: redCloverReply.id, parentCommentId: ownerComment.id },
       },
       {
         orgId: org.id,
@@ -312,12 +243,7 @@ async function main() {
     editor: editor.email,
     commenter: commenter.email,
     viewer: viewer.email,
-    redClover: redClover.email,
     documentId: doc.id,
-    ownerCommentId: ownerComment.id,
-    commenterCommentId: commenterComment.id,
-    editorGeneralCommentId: editorGeneralComment.id,
-    redCloverReplyId: redCloverReply.id,
   });
 }
 

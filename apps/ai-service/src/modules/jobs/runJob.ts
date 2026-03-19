@@ -3,7 +3,7 @@
 import { ERROR_CODES } from "@repo/contracts";
 import type { LLMOperation, LLMProvider } from "../../providers/llmProvider";
 import { MockProvider } from "../../providers/mockProvider";
-import { GeminiProvider } from "../../providers/geminiProvider";
+import { LMStudioProvider } from "../../providers/lmStudioProvider";
 import { config } from "../../config/env";
 import { withRetry } from "../../lib/retry";
 import { buildPrompt } from "./promptTemplates";
@@ -18,8 +18,8 @@ function apiError(
 
 function getProvider(): LLMProvider {
   switch (config.LLM_PROVIDER) {
-    case "gemini":
-      return new GeminiProvider();
+    case "lmstudio":
+      return new LMStudioProvider();
     case "mock":
     default:
       return new MockProvider();
@@ -70,13 +70,18 @@ export async function runJob(input: RunJobInput): Promise<{ result: string }> {
         msg.includes("rate") ||
         msg.includes("503") ||
         msg.includes("502") ||
-        msg.includes("network")
+        msg.includes("network") ||
+        msg.includes("connection") ||
+        msg.includes("fetch failed")
       );
     },
   });
 
   if (!result?.result || typeof result.result !== "string") {
-    throw apiError(ERROR_CODES.AI_PROVIDER_UNAVAILABLE, "Provider returned invalid response");
+    throw apiError(
+      ERROR_CODES.AI_PROVIDER_UNAVAILABLE,
+      "Provider returned invalid response"
+    );
   }
 
   return { result: result.result };

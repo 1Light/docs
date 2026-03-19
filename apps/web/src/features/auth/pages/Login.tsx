@@ -1,5 +1,3 @@
-// apps/web/src/features/auth/pages/Login.tsx
-
 import React, { useEffect, useMemo, useState } from "react";
 import { login, previewOrgInvite, type OrgInvitePreviewResponse } from "../../../features/auth/api";
 
@@ -9,7 +7,7 @@ import { Input } from "../../../components/ui/Input";
 
 type Props = {
   onLoggedIn?: () => void;
-  onGoToSignupOwner?: () => void;
+  onGoToSignupInvite?: () => void;
   inviteMode?: boolean;
   inviteToken?: string;
   inviteEmailHint?: string;
@@ -35,7 +33,7 @@ function formatDateTime(value: string) {
 
 export function Login({
   onLoggedIn,
-  onGoToSignupOwner,
+  onGoToSignupInvite,
   inviteMode = false,
   inviteToken,
   inviteEmailHint,
@@ -324,10 +322,10 @@ export function Login({
                     : "Sign in"}
               </Button>
 
-              {onGoToSignupOwner && (
+              {onGoToSignupInvite && (
                 <button
                   type="button"
-                  onClick={onGoToSignupOwner}
+                  onClick={onGoToSignupInvite}
                   className="w-full text-center text-xs text-gray-600 hover:text-gray-900"
                 >
                   {inviteMode

@@ -66,7 +66,10 @@ function normalizeSelection(sel: any): { start: number; end: number; text: strin
   return { start, end, text };
 }
 
-function normalizeParameters(parameters: any, operation: "enhance" | "summarize" | "translate" | "reformat") {
+function normalizeParameters(
+  parameters: any,
+  operation: "enhance" | "summarize" | "translate" | "reformat"
+) {
   const raw = parameters && typeof parameters === "object" ? parameters : {};
 
   const out: {
@@ -115,7 +118,7 @@ function toJobError(job: { errorMessage?: string | null }) {
 
   return {
     code: ERROR_CODES.AI_PROVIDER_UNAVAILABLE,
-    message: "AI provider unavailable",
+    message: "AI service unavailable",
     ...(dev ? { details: { providerMessage: job.errorMessage } } : {}),
   };
 }

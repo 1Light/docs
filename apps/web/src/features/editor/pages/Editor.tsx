@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Editor as TiptapEditor } from "@tiptap/react";
 
 import { getDocument, updateDocument } from "../../documents/api";
+import type { Comment } from "../../comments/api";
 
 import { PresenceLayer } from "../../presence/PresenceLayer";
 import { Button } from "../../../components/ui/Button";
@@ -23,6 +24,7 @@ import {
   type SidePanel,
 } from "../editorUtils";
 import { useCommentSummary } from "../../comments/useCommentSummary";
+import type { AIOperation } from "../../ai/api";
 
 type Props = {
   documentId: string;
@@ -30,11 +32,136 @@ type Props = {
   onCurrentUserColorChange?: (color: string | null) => void;
 };
 
+type EditorSelection = {
+  start: number;
+  end: number;
+  text: string;
+  pmFrom: number;
+  pmTo: number;
+};
+
+type PendingCommentAnchor = {
+  start: number;
+  end: number;
+  text: string;
+  pmFrom?: number;
+  pmTo?: number;
+};
+
+function escapeHtml(text: string) {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function isBulletListText(text: string) {
+  const lines = text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  return lines.length > 0 && lines.every((line) => line.startsWith("- "));
+}
+
+function textToHtml(text: string) {
+  const normalized = text.replace(/\r\n/g, "\n").trim();
+
+  if (!normalized) {
+    return "<p></p>";
+  }
+
+  if (isBulletListText(normalized)) {
+    const items = normalized
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => `<li>${escapeHtml(line.replace(/^-\s*/, "").trim())}</li>`)
+      .join("");
+
+    return `<ul>${items}</ul>`;
+  }
+
+  const paragraphs = normalized
+    .split(/\n{2,}/)
+    .map((block) => block.trim())
+    .filter(Boolean)
+    .map((block) => `<p>${escapeHtml(block).replace(/\n/g, "<br>")}</p>`);
+
+  return paragraphs.join("");
+}
+
+function normalizeAnchorText(value: string) {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function resolveCommentAnchorInEditor(
+  editor: TiptapEditor | null,
+  comment: Comment,
+  searchRadius = 400
+): { from: number; to: number } | null {
+  if (!editor) return null;
+  if (!comment.anchor) return null;
+
+  const quote = normalizeAnchorText(comment.quote ?? "");
+  if (!quote) return null;
+
+  const doc = editor.state.doc;
+  const docSize = doc.content.size;
+
+  const rawFrom = comment.anchor.start;
+  const rawTo = comment.anchor.end;
+
+  const from = Math.max(0, Math.min(rawFrom, docSize));
+  const to = Math.max(0, Math.min(rawTo, docSize));
+
+  if (to <= from) return null;
+
+  const exactText = normalizeAnchorText(doc.textBetween(from, to, " ", " "));
+  if (exactText && exactText === quote) {
+    return { from, to };
+  }
+
+  const searchFrom = Math.max(0, from - searchRadius);
+  const searchTo = Math.min(docSize, to + searchRadius);
+
+  if (searchTo <= searchFrom) return null;
+
+  const windowTextRaw = doc.textBetween(searchFrom, searchTo, "\n", "\n");
+  const windowText = normalizeAnchorText(windowTextRaw);
+
+  if (!windowText) return null;
+
+  const pattern = new RegExp(escapeRegExp(quote), "i");
+  const match = pattern.exec(windowText);
+
+  if (!match || match.index < 0) return null;
+
+  const matchedText = match[0];
+  const normalizedPrefix = windowText.slice(0, match.index);
+
+  const approxFrom = searchFrom + normalizedPrefix.length;
+  const approxTo = approxFrom + matchedText.length;
+
+  const safeFrom = Math.max(0, Math.min(approxFrom, docSize));
+  const safeTo = Math.max(safeFrom, Math.min(approxTo, docSize));
+
+  if (safeTo <= safeFrom) return null;
+
+  return {
+    from: safeFrom,
+    to: safeTo,
+  };
+}
+
 export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Props) {
   const meRef = useRef(readMe());
   const me = meRef.current;
-
-  const documentIdRef = useLatestRef(documentId);
 
   const [loading, setLoading] = useState(true);
   const [banner, setBanner] = useState<string | null>(null);
@@ -47,19 +174,22 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
   const [docRole, setDocRole] = useState<DocumentRole | null>(null);
   const docRoleRef = useLatestRef(docRole);
 
-  const [selection, setSelection] = useState<{ start: number; end: number; text: string }>({
+  const [selection, setSelection] = useState<EditorSelection>({
     start: 0,
     end: 0,
     text: "",
+    pmFrom: 0,
+    pmTo: 0,
   });
-  const selectionRef = useLatestRef({ start: selection.start, end: selection.end });
+  const selectionRef = useLatestRef({
+    start: selection.start,
+    end: selection.end,
+  });
 
   const [sidePanel, setSidePanel] = useState<SidePanel>("none");
-  const [pendingCommentAnchor, setPendingCommentAnchor] = useState<{
-    start: number;
-    end: number;
-    text: string;
-  } | null>(null);
+  const [pendingCommentAnchor, setPendingCommentAnchor] = useState<PendingCommentAnchor | null>(
+    null
+  );
 
   const editorRef = useLatestRef<TiptapEditor | null>(null);
   const [editorInstance, setEditorInstance] = useState<TiptapEditor | null>(null);
@@ -85,11 +215,12 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
     }
   }, [editorInstance, openComments, applyOpenCommentHighlights, editorRef]);
 
-  const savingRef = useRef(false);
-  const lastSavedContentRef = useRef<string>("");
   const initialHtmlRef = useRef<string>("");
+  const lastSavedContentRef = useRef<string>("");
   const hydrateDoneRef = useRef(false);
   const suppressAutosaveRef = useRef(false);
+  const saveInFlightRef = useRef(false);
+  const pendingSaveHtmlRef = useRef<string | null>(null);
 
   const seedT1Ref = useRef<number | null>(null);
   const seedT2Ref = useRef<number | null>(null);
@@ -107,24 +238,85 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
     ySaveTimerRef.current = null;
   }
 
-  async function saveNow(content: string) {
-    const role = docRoleRef.current;
-    if (!canEdit(role)) return;
-    if (!initialSyncDoneRef.current) return;
+  const isCommentAnchorValid = useCallback(
+    (comment: Comment) => {
+      return Boolean(resolveCommentAnchorInEditor(editorRef.current, comment));
+    },
+    [editorRef]
+  );
 
-    if (savingRef.current) return;
-    if (content === lastSavedContentRef.current) return;
+  async function persistDocumentContent(nextHtml: string) {
+    const trimmedNext = nextHtml ?? "";
+    const trimmedLast = lastSavedContentRef.current ?? "";
 
-    const id = documentIdRef.current;
+    if (trimmedNext === trimmedLast) {
+      return;
+    }
 
-    savingRef.current = true;
+    if (saveInFlightRef.current) {
+      pendingSaveHtmlRef.current = trimmedNext;
+      return;
+    }
+
+    saveInFlightRef.current = true;
+
     try {
-      await updateDocument(id, content);
-      lastSavedContentRef.current = content;
+      await updateDocument(documentId, trimmedNext);
+      lastSavedContentRef.current = trimmedNext;
+      pendingSaveHtmlRef.current = null;
     } catch (e: any) {
       setBanner(e?.message ?? "Failed to save document");
+      pendingSaveHtmlRef.current = trimmedNext;
     } finally {
-      savingRef.current = false;
+      saveInFlightRef.current = false;
+
+      const queued = pendingSaveHtmlRef.current;
+      if (queued && queued !== lastSavedContentRef.current) {
+        pendingSaveHtmlRef.current = null;
+        void persistDocumentContent(queued);
+      }
+    }
+  }
+
+  function applyLiveAIResult(params: {
+    finalText: string;
+    applyMode: "replace" | "insert_below";
+    operation: AIOperation;
+    targetSelection: {
+      start: number;
+      end: number;
+      text: string;
+      pmFrom: number;
+      pmTo: number;
+    };
+  }) {
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    const from = params.targetSelection.pmFrom;
+    const to = params.targetSelection.pmTo;
+    const html = textToHtml(params.finalText);
+
+    suppressAutosaveRef.current = true;
+    hydrateDoneRef.current = false;
+
+    try {
+      if (params.applyMode === "insert_below") {
+        const insertPos = Math.max(from, to);
+        editor.chain().focus().insertContentAt(insertPos, `<p></p>${html}`).run();
+      } else {
+        editor.chain().focus().insertContentAt({ from, to }, html).run();
+      }
+
+      const nextHtml = editor.getHTML();
+      initialHtmlRef.current = nextHtml;
+      lastSavedContentRef.current = nextHtml;
+      void persistDocumentContent(nextHtml);
+    } finally {
+      window.setTimeout(() => {
+        hydrateDoneRef.current = true;
+        suppressAutosaveRef.current = false;
+      }, 0);
     }
   }
 
@@ -196,6 +388,8 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
       lastSavedContentRef.current = "";
       hydrateDoneRef.current = false;
       suppressAutosaveRef.current = false;
+      saveInFlightRef.current = false;
+      pendingSaveHtmlRef.current = null;
 
       try {
         const doc = await getDocument(documentId);
@@ -285,7 +479,15 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
 
       clearYSaveTimer();
       ySaveTimerRef.current = window.setTimeout(() => {
-        void saveNow(editor.getHTML());
+        const editorNow = editorRef.current;
+        if (!editorNow) return;
+
+        const nextHtml = editorNow.getHTML();
+        initialHtmlRef.current = nextHtml;
+
+        if (nextHtml !== lastSavedContentRef.current) {
+          void persistDocumentContent(nextHtml);
+        }
       }, 900);
     };
 
@@ -296,23 +498,25 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
       clearSeedTimers();
       clearYSaveTimer();
     };
-  }, [editorInstance, isConnected, loading, managerRef, canSeedRef, initialSyncDoneRef, docRoleRef]);
+  }, [
+    editorInstance,
+    isConnected,
+    loading,
+    managerRef,
+    canSeedRef,
+    initialSyncDoneRef,
+    docRoleRef,
+    editorRef,
+    documentId,
+  ]);
 
   useEffect(() => {
     return () => {
       clearSeedTimers();
       clearYSaveTimer();
       clearScheduledCommentRefresh();
-
-      const editor = editorInstance;
-      if (!editor) return;
-      if (!canEdit(docRoleRef.current)) return;
-      if (!initialSyncDoneRef.current) return;
-      if (suppressAutosaveRef.current) return;
-
-      void saveNow(editor.getHTML());
     };
-  }, [documentId, editorInstance, clearScheduledCommentRefresh, docRoleRef, initialSyncDoneRef]);
+  }, [documentId, editorInstance, clearScheduledCommentRefresh]);
 
   function jumpToAnchor(anchor: { start: number; end: number }) {
     const editor = editorInstance;
@@ -325,6 +529,28 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
     editor.commands.focus();
 
     scrollPosIntoView(editor, from);
+  }
+
+  function jumpToResolvedCommentAnchor(comment: Comment) {
+    const editor = editorInstance;
+    if (!editor) return;
+
+    const resolved = resolveCommentAnchorInEditor(editor, comment);
+
+    if (!resolved) {
+      if (comment.anchor) {
+        jumpToAnchor(comment.anchor);
+      }
+      return;
+    }
+
+    editor.commands.setTextSelection({
+      from: resolved.from,
+      to: resolved.to,
+    });
+    editor.commands.focus();
+
+    scrollPosIntoView(editor, resolved.from);
   }
 
   const connectionBadge = (
@@ -462,7 +688,13 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
                           if (!trimmed) return;
 
                           setSidePanel("comments");
-                          setPendingCommentAnchor(selection);
+                          setPendingCommentAnchor({
+                            start: selection.pmFrom,
+                            end: selection.pmTo,
+                            pmFrom: selection.pmFrom,
+                            pmTo: selection.pmTo,
+                            text: selection.text,
+                          });
                         }}
                         onAI={() => {
                           const trimmed = selection.text.trim();
@@ -494,7 +726,21 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
                   setSidePanel("none");
                   setPendingCommentAnchor(null);
                 }}
-                onJumpToAnchor={jumpToAnchor}
+                onJumpToAnchor={(anchor) => {
+                  const matchingComment = openComments.find(
+                    (c) =>
+                      c.anchor?.start === anchor.start &&
+                      c.anchor?.end === anchor.end
+                  );
+
+                  if (matchingComment) {
+                    jumpToResolvedCommentAnchor(matchingComment);
+                    return;
+                  }
+
+                  jumpToAnchor(anchor);
+                }}
+                isAnchorValid={isCommentAnchorValid}
                 onCommentsChanged={async () => {
                   setPendingCommentAnchor(null);
                   await refreshCommentSummary();
@@ -522,6 +768,29 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
                   setBanner(null);
                 }}
                 onVersionDeleted={async () => {
+                  setBanner(null);
+                }}
+                onAIApplied={async ({
+                  finalText,
+                  applyMode,
+                  operation,
+                  targetSelection,
+                }) => {
+                  applyLiveAIResult({
+                    finalText,
+                    applyMode,
+                    operation,
+                    targetSelection,
+                  });
+
+                  setSelection({
+                    start: 0,
+                    end: 0,
+                    text: "",
+                    pmFrom: 0,
+                    pmTo: 0,
+                  });
+                  setPendingCommentAnchor(null);
                   setBanner(null);
                 }}
               />

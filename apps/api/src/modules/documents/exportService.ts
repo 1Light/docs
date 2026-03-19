@@ -1,10 +1,8 @@
-// apps/api/src/modules/documents/exportService.ts
-
 import fs from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
-import HtmlToDocx from "@turbodocx/html-to-docx";
 import puppeteer from "puppeteer";
+import { Document, Packer, Paragraph, TextRun, HeadingLevel } from "docx";
 
 import { ERROR_CODES } from "@repo/contracts";
 import { documentRepo } from "./documentRepo";
@@ -13,24 +11,6 @@ const EXPORT_DIR = process.env.EXPORT_DIR || path.join(process.cwd(), "exports")
 const BASE_URL = process.env.EXPORT_BASE_URL || "http://localhost:4000";
 
 type ExportFormat = "pdf" | "docx";
-
-type HtmlToDocxFn = (
-  html: string,
-  headerHtml?: string,
-  documentOptions?: {
-    title?: string;
-    creator?: string;
-    margins?: {
-      top?: number;
-      right?: number;
-      bottom?: number;
-      left?: number;
-    };
-  },
-  footerHtml?: string
-) => Promise<Buffer | Uint8Array | ArrayBuffer>;
-
-const htmlToDocx = HtmlToDocx as unknown as HtmlToDocxFn;
 
 async function ensureExportDir() {
   await fs.mkdir(EXPORT_DIR, { recursive: true });
@@ -52,12 +32,6 @@ function sanitizeFilenamePart(value: string) {
 function normalizeTitle(title: string | null | undefined) {
   const clean = typeof title === "string" ? title.trim() : "";
   return clean.length > 0 ? clean : "document";
-}
-
-function toBuffer(value: Buffer | ArrayBuffer | Uint8Array) {
-  if (Buffer.isBuffer(value)) return value;
-  if (value instanceof Uint8Array) return Buffer.from(value);
-  return Buffer.from(value);
 }
 
 function escapeHtml(value: string) {
@@ -165,7 +139,47 @@ function wrapHtmlDocument(params: { title: string; bodyHtml: string }) {
 </html>`;
 }
 
-async function buildPdfBuffer(html: string) {
+function stripHtmlToText(html: string) {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<\/(p|div|h1|h2|h3|h4|h5|h6|li|blockquote|pre)>/gi, "\n")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<li[^>]*>/gi, "• ")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\r/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function looksLikeHtml(value: string) {
+  return /<\/?[a-z][\s\S]*>/i.test(value);
+}
+
+function buildBodyHtml(content: string | null | undefined) {
+  const raw = typeof content === "string" ? content.trim() : "";
+  if (!raw) return "<p></p>";
+
+  if (looksLikeHtml(raw)) {
+    return raw;
+  }
+
+  const paragraphs = raw
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => `<p>${escapeHtml(line)}</p>`);
+
+  return paragraphs.length > 0 ? paragraphs.join("") : "<p></p>";
+}
+
+async function buildPdfBuffer(htmlDocument: string) {
   const browser = await puppeteer.launch({
     headless: true,
     args: [
@@ -179,7 +193,7 @@ async function buildPdfBuffer(html: string) {
   try {
     const page = await browser.newPage();
 
-    await page.setContent(html, {
+    await page.setContent(htmlDocument, {
       waitUntil: "networkidle0",
     });
 
@@ -200,24 +214,36 @@ async function buildPdfBuffer(html: string) {
   }
 }
 
-async function buildDocxBuffer(title: string, html: string) {
-  const out = await htmlToDocx(
-    html,
-    undefined,
-    {
-      title,
-      creator: "Collab Editor",
-      margins: {
-        top: 1440,
-        right: 1440,
-        bottom: 1440,
-        left: 1440,
-      },
-    },
-    undefined
-  );
+async function buildDocxBuffer(title: string, bodyHtml: string) {
+  const plainText = stripHtmlToText(bodyHtml);
+  const lines = plainText.split(/\n{2,}|\n/).map((s) => s.trim()).filter(Boolean);
 
-  return toBuffer(out);
+  const paragraphs: Paragraph[] = [];
+
+  if (lines.length === 0) {
+    paragraphs.push(new Paragraph(""));
+  } else {
+    for (const line of lines) {
+      paragraphs.push(
+        new Paragraph({
+          children: [new TextRun(line)],
+        })
+      );
+    }
+  }
+
+  const doc = new Document({
+    creator: "Collab Editor",
+    title, // keep metadata, not content
+    sections: [
+      {
+        properties: {},
+        children: paragraphs,
+      },
+    ],
+  });
+
+  return Packer.toBuffer(doc);
 }
 
 export const exportService = {
@@ -229,6 +255,19 @@ export const exportService = {
     if (!doc) {
       throw { code: ERROR_CODES.NOT_FOUND, message: "Document not found" };
     }
+
+    console.log("[export] format:", params.format);
+    console.log("[export] doc id:", doc?.id);
+    console.log("[export] title:", doc?.title);
+    console.log("[export] content typeof:", typeof doc?.content);
+    console.log(
+      "[export] content length:",
+      typeof doc?.content === "string" ? doc.content.length : null
+    );
+    console.log(
+      "[export] content preview (first 500):",
+      typeof doc?.content === "string" ? doc.content.slice(0, 500) : doc?.content
+    );
 
     if (params.format !== "pdf" && params.format !== "docx") {
       throw {
@@ -245,15 +284,28 @@ export const exportService = {
     const filename = `${safeTitle}_${doc.id}_${token}.${params.format}`;
     const filepath = path.join(EXPORT_DIR, filename);
 
-    const html = wrapHtmlDocument({
+    const bodyHtml = buildBodyHtml(doc.content);
+    const htmlDocument = wrapHtmlDocument({
       title: normalizeTitle(doc.title),
-      bodyHtml: doc.content || "<p></p>",
+      bodyHtml,
     });
+
+    console.log("[export] bodyHtml length:", bodyHtml.length);
+    console.log("[export] bodyHtml preview (first 500):", bodyHtml.slice(0, 500));
+
+    if (params.format === "docx") {
+      const plainText = stripHtmlToText(bodyHtml);
+      console.log("[export] plainText length:", plainText.length);
+      console.log("[export] plainText preview (first 500):", plainText.slice(0, 500));
+    }
 
     const buffer =
       params.format === "pdf"
-        ? await buildPdfBuffer(html)
-        : await buildDocxBuffer(normalizeTitle(doc.title), html);
+        ? await buildPdfBuffer(htmlDocument)
+        : await buildDocxBuffer(normalizeTitle(doc.title), bodyHtml);
+
+    console.log("[export] output filename:", filename);
+    console.log("[export] buffer bytes:", buffer.length);
 
     await fs.writeFile(filepath, buffer);
 

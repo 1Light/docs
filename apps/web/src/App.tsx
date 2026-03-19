@@ -324,7 +324,14 @@ export default function App() {
           element={
             <Login
               onLoggedIn={loadCurrentUserAndRouteAfterLogin}
-              onGoToSignupOwner={() => navigate("/signup")}
+              onGoToSignupInvite={() => {
+                if (loginInviteToken) {
+                  rememberPendingInvite({ name: "signupInvite", token: loginInviteToken });
+                  navigate(`/signup/invite/${loginInviteToken}`);
+                  return;
+                }
+                navigate("/signup");
+              }}
               inviteMode={loginInviteMode}
               inviteToken={loginInviteToken}
             />

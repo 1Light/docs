@@ -32,6 +32,7 @@ export const commentRepo = {
     parentCommentId?: string | null;
     anchorStart?: number | null;
     anchorEnd?: number | null;
+    quote?: string | null;
   }) {
     return prisma.comment.create({
       data: {
@@ -41,6 +42,7 @@ export const commentRepo = {
         body: data.body,
         anchorStart: data.anchorStart ?? null,
         anchorEnd: data.anchorEnd ?? null,
+        quote: data.quote ?? null,
         status: CommentStatus.open,
       },
       include: withAuthor,

@@ -13,12 +13,10 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@google/genai": "^1.45.0",
     "@repo/contracts": "workspace:*",
     "express": "^4.19.2",
     "helmet": "^8.1.0",
     "morgan": "^1.10.1",
-    "openai": "^4.60.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {

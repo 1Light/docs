@@ -11,13 +11,21 @@ type Props = {
   docRole: DocumentRole | null;
   extensions: any[];
   onEditorReady: (ed: TiptapEditor | null) => void;
-  onSelectionChange: (sel: { start: number; end: number; text: string }) => void;
+  onSelectionChange: (sel: {
+    start: number;
+    end: number;
+    text: string;
+    pmFrom: number;
+    pmTo: number;
+  }) => void;
 };
 
-function getPlainTextSelection(editor: TiptapEditor): {
+function getSelectionSnapshot(editor: TiptapEditor): {
   start: number;
   end: number;
   text: string;
+  pmFrom: number;
+  pmTo: number;
 } {
   const { from, to } = editor.state.selection;
   const doc = editor.state.doc;
@@ -26,7 +34,13 @@ function getPlainTextSelection(editor: TiptapEditor): {
   const end = doc.textBetween(0, to, "\n", "\n").length;
   const text = doc.textBetween(from, to, "\n", "\n");
 
-  return { start, end, text };
+  return {
+    start,
+    end,
+    text,
+    pmFrom: from,
+    pmTo: to,
+  };
 }
 
 export function CollabEditor(props: Props) {
@@ -50,7 +64,7 @@ export function CollabEditor(props: Props) {
   }, [props.extensions]);
 
   function emitSelectionChange(editor: TiptapEditor) {
-    const next = getPlainTextSelection(editor);
+    const next = getSelectionSnapshot(editor);
 
     if (notifySelectionFrameRef.current != null) {
       cancelAnimationFrame(notifySelectionFrameRef.current);
@@ -100,9 +114,11 @@ export function CollabEditor(props: Props) {
       },
       onCreate(ctx) {
         syncCursorToAwareness(ctx.editor);
+        emitSelectionChange(ctx.editor);
       },
       onFocus(ctx) {
         syncCursorToAwareness(ctx.editor);
+        emitSelectionChange(ctx.editor);
       },
       onSelectionUpdate(ctx) {
         emitSelectionChange(ctx.editor);

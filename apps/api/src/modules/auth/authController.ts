@@ -40,6 +40,17 @@ function normalizeOrgRole(role: unknown): AppOrgRole | null {
   return null;
 }
 
+function makeDeletedEmail(userId: string, email: string) {
+  const normalized = normalizeEmail(email);
+  const localPart = normalized.includes("@") ? normalized.split("@")[0] : "user";
+  const safeLocalPart = localPart.replace(/[^a-zA-Z0-9._+-]/g, "").slice(0, 32) || "user";
+  return `deleted+${safeLocalPart}+${userId}+${Date.now()}@deleted.local`;
+}
+
+function makeDeletedPassword() {
+  return crypto.randomBytes(32).toString("hex");
+}
+
 async function buildAuthResponse(params: {
   userId: string;
   name: string;
@@ -87,7 +98,7 @@ export const authController = {
       }
 
       const user = await userRepo.findByEmail(normalizedEmail);
-      if (!user) {
+      if (!user || user.isDeleted) {
         throw { code: ERROR_CODES.UNAUTHORIZED, message: "Invalid email or password" };
       }
 
@@ -167,8 +178,8 @@ export const authController = {
         };
       }
 
-      const existingUser = await userRepo.findByEmail(normalizedEmail);
-      if (existingUser) {
+      const existingUser = await userRepo.findAnyByEmail(normalizedEmail);
+      if (existingUser && !existingUser.isDeleted) {
         throw {
           code: ERROR_CODES.INVALID_REQUEST,
           message: "An account with this email already exists",
@@ -178,6 +189,16 @@ export const authController = {
       const passwordHash = await bcrypt.hash(password, 10);
 
       const out = await prisma.$transaction(async (tx) => {
+        if (existingUser && existingUser.isDeleted) {
+          await tx.user.update({
+            where: { id: existingUser.id },
+            data: {
+              email: makeDeletedEmail(existingUser.id, existingUser.email),
+              password: makeDeletedPassword(),
+            },
+          });
+        }
+
         const user = await tx.user.create({
           data: {
             name: cleanName,
@@ -252,8 +273,8 @@ export const authController = {
         };
       }
 
-      const existingUser = await userRepo.findByEmail(normalizedEmail);
-      if (existingUser) {
+      const existingUser = await userRepo.findAnyByEmail(normalizedEmail);
+      if (existingUser && !existingUser.isDeleted) {
         throw {
           code: ERROR_CODES.INVALID_REQUEST,
           message: "An account with this email already exists. Please sign in to accept the invite.",
@@ -297,6 +318,16 @@ export const authController = {
       const passwordHash = await bcrypt.hash(password, 10);
 
       const out = await prisma.$transaction(async (tx) => {
+        if (existingUser && existingUser.isDeleted) {
+          await tx.user.update({
+            where: { id: existingUser.id },
+            data: {
+              email: makeDeletedEmail(existingUser.id, existingUser.email),
+              password: makeDeletedPassword(),
+            },
+          });
+        }
+
         const user = await tx.user.create({
           data: {
             name: cleanName,
@@ -520,6 +551,8 @@ export const authController = {
 
       const membershipCount = memberships.length;
       const orgIdsForAudit = [...new Set(memberships.map((m) => m.orgId).filter(Boolean))];
+      const deletedEmail = makeDeletedEmail(user.id, user.email);
+      const deletedPasswordHash = await bcrypt.hash(makeDeletedPassword(), 10);
 
       await prisma.$transaction(async (tx) => {
         await tx.organizationMember.deleteMany({
@@ -560,6 +593,8 @@ export const authController = {
         await tx.user.update({
           where: { id: user.id },
           data: {
+            email: deletedEmail,
+            password: deletedPasswordHash,
             isDeleted: true,
             deletedAt: new Date(),
           },
@@ -574,6 +609,7 @@ export const authController = {
             actionType: "ACCOUNT_SELF_DELETED",
             metadata: {
               email: user.email,
+              deletedEmail,
               name: user.name,
               ownedDocumentCount,
               membershipCount,

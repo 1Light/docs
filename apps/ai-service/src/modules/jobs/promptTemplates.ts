@@ -16,7 +16,6 @@ type PromptParams = {
 };
 
 function sanitizeText(text: string): string {
-  // Normalize excessive whitespace but preserve formatting lines
   return text.replace(/\r\n/g, "\n").trim();
 }
 
@@ -32,6 +31,32 @@ export function buildPrompt(
 
   switch (operation) {
     case "summarize":
+      if (summaryStyle === "bullet_points") {
+        return `
+You are an assistant helping improve a document.
+
+Task:
+Summarize the text into EXACTLY 3 bullet points.
+
+STRICT REQUIREMENTS:
+- Each bullet MUST be on its own line
+- DO NOT put multiple bullets on one line
+- DO NOT merge bullets together
+- Each bullet must start with "- "
+- Keep each bullet concise
+- Do not repeat information
+
+CORRECT FORMAT:
+- First point
+- Second point
+- Third point
+
+--- BEGIN TEXT ---
+${text}
+--- END TEXT ---
+`.trim();
+      }
+
       return `
 You are an assistant helping improve a document.
 
@@ -42,9 +67,7 @@ Requirements:
 - Preserve the original meaning.
 - Do not add new facts.
 - Be concise.
-
-Output style:
-${summaryStyle === "bullet_points" ? "- 3 bullet points." : "- A short paragraph summary."}
+- Output a short paragraph only.
 
 --- BEGIN TEXT ---
 ${text}
@@ -89,6 +112,32 @@ ${text}
 `.trim();
 
     case "reformat":
+      if (formatStyle === "bullet_list") {
+        return `
+You are an assistant helping improve a document.
+
+Task:
+Convert the text into a clean bullet list.
+
+STRICT REQUIREMENTS:
+- Each bullet MUST be on its own line
+- DO NOT combine multiple bullets on one line
+- Each bullet must start with "- "
+- Keep bullets concise
+- Do not repeat content
+- Do not add new information
+
+CORRECT FORMAT:
+- First point
+- Second point
+- Third point
+
+--- BEGIN TEXT ---
+${text}
+--- END TEXT ---
+`.trim();
+      }
+
       return `
 You are an assistant helping improve a document.
 

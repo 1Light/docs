@@ -63,6 +63,7 @@ function toDto(c: any): any {
       c.anchorStart !== null && c.anchorEnd !== null
         ? { start: c.anchorStart, end: c.anchorEnd }
         : undefined,
+    quote: c.quote ?? undefined,
     parentCommentId: c.parentCommentId ?? undefined,
     status: c.status,
     createdAt: c.createdAt.toISOString(),

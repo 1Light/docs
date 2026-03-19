@@ -44,7 +44,10 @@ function normalizeParameters(parameters: unknown) {
     out.summaryStyle = (raw as any).summaryStyle.trim();
   }
 
-  if (typeof (raw as any).language === "string" && (raw as any).language.trim()) {
+  if (
+    typeof (raw as any).language === "string" &&
+    (raw as any).language.trim()
+  ) {
     out.language = (raw as any).language.trim();
   }
 
@@ -85,8 +88,9 @@ export const jobController = {
         throw apiError(ERROR_CODES.INVALID_REQUEST, "selectedText is required");
       }
 
-      const trimmed = selectedText.trim();
-      if (trimmed.length === 0) {
+      const trimmedSelectedText = selectedText.trim();
+
+      if (trimmedSelectedText.length === 0) {
         throw apiError(ERROR_CODES.INVALID_REQUEST, "selectedText is empty");
       }
 
@@ -101,11 +105,17 @@ export const jobController = {
       const normalizedParameters = normalizeParameters(parameters);
 
       if (operation === "translate" && !normalizedParameters.language) {
-        throw apiError(ERROR_CODES.INVALID_REQUEST, "language is required for translate");
+        throw apiError(
+          ERROR_CODES.INVALID_REQUEST,
+          "language is required for translate"
+        );
       }
 
       if (operation === "reformat" && !normalizedParameters.formatStyle) {
-        throw apiError(ERROR_CODES.INVALID_REQUEST, "formatStyle is required for reformat");
+        throw apiError(
+          ERROR_CODES.INVALID_REQUEST,
+          "formatStyle is required for reformat"
+        );
       }
 
       const out = await runJob({
@@ -116,7 +126,10 @@ export const jobController = {
       });
 
       if (!out?.result || typeof out.result !== "string") {
-        throw apiError(ERROR_CODES.AI_PROVIDER_UNAVAILABLE, "Provider returned invalid response");
+        throw apiError(
+          ERROR_CODES.AI_PROVIDER_UNAVAILABLE,
+          "Provider returned invalid response"
+        );
       }
 
       return res.json({ result: out.result });

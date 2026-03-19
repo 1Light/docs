@@ -26,8 +26,15 @@ import { normalizeCommentTree, type ReplyableComment } from "./commentTree";
 
 type Props = {
   documentId: string;
-  selection: { start: number; end: number; text: string };
+  selection: {
+    start: number;
+    end: number;
+    text: string;
+    pmFrom?: number;
+    pmTo?: number;
+  };
   onJumpToAnchor?: (anchor: { start: number; end: number }) => void;
+  isAnchorValid?: (comment: Comment) => boolean;
   role?: DocumentRole;
   meId?: string;
   autoFocus?: boolean;
@@ -102,6 +109,7 @@ export function CommentsPanel({
   documentId,
   selection,
   onJumpToAnchor,
+  isAnchorValid,
   role,
   meId,
   autoFocus = false,
@@ -224,8 +232,11 @@ export function CommentsPanel({
     setBusyId("new");
 
     try {
+      const anchorStart = selection.pmFrom ?? selection.start;
+      const anchorEnd = selection.pmTo ?? selection.end;
+
       await createComment(documentId, newBody.trim(), {
-        anchor: canAnchor ? { start: selection.start, end: selection.end } : undefined,
+        anchor: canAnchor ? { start: anchorStart, end: anchorEnd } : undefined,
         quote: canAnchor ? selection.text : undefined,
       });
 
@@ -500,32 +511,41 @@ export function CommentsPanel({
             </div>
           ) : (
             <div className="space-y-3">
-              {commentTree.map((c) => (
-                <CommentCard
-                  key={c.commentId}
-                  c={c}
-                  role={role ?? null}
-                  meId={meId}
-                  allowComment={allowComment}
-                  allowModerate={allowModerate}
-                  isEditing={editingId === c.commentId}
-                  editingBody={editingBody}
-                  setEditingBody={setEditingBody}
-                  replyingToId={replyingToId}
-                  replyBody={replyBody}
-                  setReplyBody={setReplyBody}
-                  onStartEdit={() => startEdit(c)}
-                  onCancelEdit={cancelEdit}
-                  onSaveEdit={saveEdit}
-                  onStartReply={() => startReply(c.commentId)}
-                  onCancelReply={cancelReply}
-                  onSaveReply={() => addReply(c)}
-                  onResolve={() => onResolve(c.commentId)}
-                  onDelete={() => onDelete(c.commentId)}
-                  onJump={() => (c.anchor ? onJumpToAnchor?.(c.anchor) : undefined)}
-                  busy={busyId === c.commentId || busyId === `reply:${c.commentId}`}
-                />
-              ))}
+              {commentTree.map((c) => {
+                const isDetached = Boolean(isAnchorValid && c.anchor && !isAnchorValid(c));
+
+                return (
+                  <CommentCard
+                    key={c.commentId}
+                    c={c}
+                    role={role ?? null}
+                    meId={meId}
+                    allowComment={allowComment}
+                    allowModerate={allowModerate}
+                    isEditing={editingId === c.commentId}
+                    editingBody={editingBody}
+                    setEditingBody={setEditingBody}
+                    replyingToId={replyingToId}
+                    replyBody={replyBody}
+                    setReplyBody={setReplyBody}
+                    onStartEdit={() => startEdit(c)}
+                    onCancelEdit={cancelEdit}
+                    onSaveEdit={saveEdit}
+                    onStartReply={() => startReply(c.commentId)}
+                    onCancelReply={cancelReply}
+                    onSaveReply={() => addReply(c)}
+                    onResolve={() => onResolve(c.commentId)}
+                    onDelete={() => onDelete(c.commentId)}
+                    onJump={() => {
+                      if (c.anchor && (!isAnchorValid || isAnchorValid(c))) {
+                        onJumpToAnchor?.(c.anchor);
+                      }
+                    }}
+                    isDetached={isDetached}
+                    busy={busyId === c.commentId || busyId === `reply:${c.commentId}`}
+                  />
+                );
+              })}
             </div>
           )}
         </div>
@@ -555,6 +575,7 @@ function CommentCard({
   onResolve,
   onDelete,
   onJump,
+  isDetached,
   busy,
 }: {
   c: ReplyableComment;
@@ -577,6 +598,7 @@ function CommentCard({
   onResolve: () => void;
   onDelete: () => void;
   onJump: () => void;
+  isDetached: boolean;
   busy: boolean;
 }) {
   const author = c.authorName ?? c.authorEmail ?? c.authorId ?? "Unknown";
@@ -587,6 +609,8 @@ function CommentCard({
   const showPermissionHint = !canEdit && !canDelete;
   const hasReplies = Boolean(c.replies?.length);
   const hasAnchor = Boolean(c.anchor);
+  const canJumpToAnchor = hasAnchor && !isDetached;
+  const quotePreview = clampPreview(c.quote ?? "", 180);
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -599,9 +623,21 @@ function CommentCard({
             ) : (
               <Badge variant="success">Open</Badge>
             )}
+            {hasAnchor && isDetached && <Badge variant="warning">Linked text moved</Badge>}
           </div>
 
           <div className="mt-1 text-xs text-gray-600">{formatDateTime(c.createdAt)}</div>
+
+          {hasAnchor && quotePreview && (
+            <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-3">
+              <div className="text-[11px] font-medium text-gray-700">
+                {isDetached ? "Original quoted text" : "Quoted text"}
+              </div>
+              <div className="mt-1 whitespace-pre-wrap break-words text-xs italic text-gray-800">
+                “{quotePreview}”
+              </div>
+            </div>
+          )}
 
           {!isEditing ? (
             <div className="mt-3 whitespace-pre-wrap break-words text-[15px] leading-7 text-gray-900">
@@ -637,7 +673,7 @@ function CommentCard({
 
           {!isEditing && (
             <div className="mt-4 flex flex-wrap items-center gap-2">
-              {hasAnchor && (
+              {canJumpToAnchor && (
                 <ActionButton
                   title="Jump to anchor"
                   icon="↗"
