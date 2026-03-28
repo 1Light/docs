@@ -1,5 +1,3 @@
-// packages/contracts/src/schemas/authSchemas.ts
-
 import { z } from "zod";
 import { ORG_ROLES } from "../constants/roles";
 
@@ -47,6 +45,32 @@ export const meResponseSchema = z.object({
 });
 
 export type MeResponse = z.infer<typeof meResponseSchema>;
+
+/* =========================
+   Member Signup (no org)
+========================= */
+
+export const signupRequestSchema = z.object({
+  name: z.string().min(1).max(120),
+  email: z.string().email(),
+  password: z.string().min(6),
+});
+
+export type SignupRequest = z.infer<typeof signupRequestSchema>;
+
+export const signupResponseSchema = z.object({
+  accessToken: z.string(),
+  expiresIn: z.number(),
+  user: z.object({
+    id: z.string(),
+    name: z.string(),
+    email: z.string(),
+    orgId: z.null(),
+    orgRole: z.null(),
+  }),
+});
+
+export type SignupResponse = z.infer<typeof signupResponseSchema>;
 
 /* =========================
    Invited Member Signup

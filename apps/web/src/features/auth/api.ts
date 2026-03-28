@@ -23,6 +23,12 @@ export type MeResponse = {
   orgId: string | null;
 };
 
+export type SignupInput = {
+  name: string;
+  email: string;
+  password: string;
+};
+
 export type SignupOwnerInput = {
   name: string;
   email: string;
@@ -102,6 +108,23 @@ export async function login(email: string, password: string) {
   const data = await http<LoginResponse>("/auth/login", {
     method: "POST",
     body: { email, password },
+  });
+
+  storeAuth(data);
+
+  const meData = await me();
+  storeMe(meData);
+
+  return meData;
+}
+
+/**
+ * Signup as normal platform user
+ */
+export async function signup(input: SignupInput) {
+  const data = await http<LoginResponse>("/auth/signup", {
+    method: "POST",
+    body: input,
   });
 
   storeAuth(data);

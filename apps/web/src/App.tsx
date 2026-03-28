@@ -16,6 +16,7 @@ import {
 import { disconnectSocket } from "./features/realtime/socket";
 
 import { Login } from "./features/auth/pages/Login";
+import { SignupMember } from "./features/auth/pages/SignupMember";
 import { SignupOwner } from "./features/auth/pages/SignupOwner";
 import { SignupInvite } from "./features/auth/pages/SignupInvite";
 import { Documents } from "./features/documents/pages/Documents";
@@ -44,6 +45,7 @@ function isAuthPath(pathname: string) {
   return (
     pathname === "/login" ||
     pathname === "/signup" ||
+    pathname === "/signup/owner" ||
     pathname.startsWith("/signup/invite/")
   );
 }
@@ -135,7 +137,12 @@ export default function App() {
         if (alive) {
           setAuthChecked(true);
 
-          if (signupInviteToken || pathname === "/login" || pathname === "/signup") {
+          if (
+            signupInviteToken ||
+            pathname === "/login" ||
+            pathname === "/signup" ||
+            pathname === "/signup/owner"
+          ) {
             return;
           }
 
@@ -172,7 +179,12 @@ export default function App() {
           }
         }
 
-        if (pathname === "/" || pathname === "/login" || pathname === "/signup") {
+        if (
+          pathname === "/" ||
+          pathname === "/login" ||
+          pathname === "/signup" ||
+          pathname === "/signup/owner"
+        ) {
           navigate(defaultAuthedPath(normalized), { replace: true });
         }
       } catch {
@@ -324,6 +336,7 @@ export default function App() {
           element={
             <Login
               onLoggedIn={loadCurrentUserAndRouteAfterLogin}
+              onGoToSignup={() => navigate("/signup")}
               onGoToSignupInvite={() => {
                 if (loginInviteToken) {
                   rememberPendingInvite({ name: "signupInvite", token: loginInviteToken });
@@ -340,6 +353,16 @@ export default function App() {
 
         <Route
           path="/signup"
+          element={
+            <SignupMember
+              onSignedUp={loadCurrentUserAndRouteAfterLogin}
+              onGoToLogin={() => navigate("/login")}
+            />
+          }
+        />
+
+        <Route
+          path="/signup/owner"
           element={
             <SignupOwner
               onSignedUp={loadCurrentUserAndRouteAfterLogin}

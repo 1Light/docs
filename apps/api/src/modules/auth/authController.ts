@@ -155,6 +155,82 @@ export const authController = {
   },
 
   /**
+   * POST /auth/signup
+   * Create standalone user without organization membership
+   */
+  async signup(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { name, email, password } = req.body as {
+        name?: string;
+        email?: string;
+        password?: string;
+      };
+
+      const cleanName = typeof name === "string" ? name.trim() : "";
+      const normalizedEmail = normalizeEmail(email);
+
+      if (!cleanName || !normalizedEmail || !password) {
+        throw {
+          code: ERROR_CODES.INVALID_REQUEST,
+          message: "name, email, and password are required",
+        };
+      }
+
+      const existingUser = await userRepo.findAnyByEmail(normalizedEmail);
+      if (existingUser && !existingUser.isDeleted) {
+        throw {
+          code: ERROR_CODES.INVALID_REQUEST,
+          message: "An account with this email already exists",
+        };
+      }
+
+      const passwordHash = await bcrypt.hash(password, 10);
+
+      const user = await prisma.$transaction(async (tx) => {
+        if (existingUser && existingUser.isDeleted) {
+          await tx.user.update({
+            where: { id: existingUser.id },
+            data: {
+              email: makeDeletedEmail(existingUser.id, existingUser.email),
+              password: makeDeletedPassword(),
+            },
+          });
+        }
+
+        return tx.user.create({
+          data: {
+            name: cleanName,
+            email: normalizedEmail,
+            password: passwordHash,
+          },
+        });
+      });
+
+      await auditLogService.logAction({
+        userId: user.id,
+        orgId: null,
+        actionType: "SIGNUP_SUCCESS",
+        metadata: {
+          email: normalizedEmail,
+          signupType: "standalone",
+        },
+      });
+
+      const response = await buildAuthResponse({
+        userId: user.id,
+        name: user.name,
+        email: user.email,
+        orgId: null,
+        orgRole: null,
+      });
+
+      return res.status(201).json(response);
+    } catch (err) {
+      return next(err);
+    }
+  },
+
+  /**
    * POST /auth/signup-owner
    * Create user + organization + OrgOwner membership
    */

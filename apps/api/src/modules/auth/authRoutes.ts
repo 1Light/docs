@@ -7,6 +7,7 @@ import { validateRequest } from "../../middleware/validateRequest";
 
 import {
   loginRequestSchema,
+  signupRequestSchema,
   inviteSignupRequestSchema,
   ownerSignupRequestSchema,
   createOrganizationRequestSchema,
@@ -21,6 +22,16 @@ router.post(
   "/login",
   validateRequest({ body: loginRequestSchema }),
   authController.login
+);
+
+/**
+ * POST /auth/signup
+ * Create standalone user (no organization)
+ */
+router.post(
+  "/signup",
+  validateRequest({ body: signupRequestSchema }),
+  authController.signup
 );
 
 /**

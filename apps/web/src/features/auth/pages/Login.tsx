@@ -1,5 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { login, previewOrgInvite, type OrgInvitePreviewResponse } from "../../../features/auth/api";
+import {
+  login,
+  previewOrgInvite,
+  type OrgInvitePreviewResponse,
+} from "../../../features/auth/api";
 
 import { Button } from "../../../components/ui/Button";
 import { Card } from "../../../components/ui/Card";
@@ -7,6 +11,7 @@ import { Input } from "../../../components/ui/Input";
 
 type Props = {
   onLoggedIn?: () => void;
+  onGoToSignup?: () => void;
   onGoToSignupInvite?: () => void;
   inviteMode?: boolean;
   inviteToken?: string;
@@ -33,6 +38,7 @@ function formatDateTime(value: string) {
 
 export function Login({
   onLoggedIn,
+  onGoToSignup,
   onGoToSignupInvite,
   inviteMode = false,
   inviteToken,
@@ -96,7 +102,11 @@ export function Login({
     if (!touched.email) return null;
     if (!emailTrimmed) return "Email is required";
     if (!isValidEmail(emailTrimmed)) return "Enter a valid email";
-    if (inviteMode && preview?.email && emailTrimmed.toLowerCase() !== preview.email.toLowerCase()) {
+    if (
+      inviteMode &&
+      preview?.email &&
+      emailTrimmed.toLowerCase() !== preview.email.toLowerCase()
+    ) {
       return "Use the same email address that received the invite";
     }
     return null;
@@ -117,12 +127,24 @@ export function Login({
     if (!inviteReady) return false;
     if (!emailTrimmed || !password) return false;
     if (!isValidEmail(emailTrimmed)) return false;
-    if (inviteMode && preview?.email && emailTrimmed.toLowerCase() !== preview.email.toLowerCase()) {
+    if (
+      inviteMode &&
+      preview?.email &&
+      emailTrimmed.toLowerCase() !== preview.email.toLowerCase()
+    ) {
       return false;
     }
     if (password.length < 6) return false;
     return true;
-  }, [emailTrimmed, password, loading, previewLoading, inviteReady, inviteMode, preview]);
+  }, [
+    emailTrimmed,
+    password,
+    loading,
+    previewLoading,
+    inviteReady,
+    inviteMode,
+    preview,
+  ]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -195,7 +217,11 @@ export function Login({
                     : "border-yellow-200 bg-yellow-50 text-yellow-900"
                 }`}
               >
-                <div className={`font-medium ${preview.valid ? "text-blue-950" : "text-yellow-950"}`}>
+                <div
+                  className={`font-medium ${
+                    preview.valid ? "text-blue-950" : "text-yellow-950"
+                  }`}
+                >
                   {preview.valid ? "Organization invite" : "Invite unavailable"}
                 </div>
 
@@ -206,7 +232,8 @@ export function Login({
                       <span className="font-medium">{preview.orgName}</span>
                       {preview.invitedByName ? (
                         <>
-                          {" "}by <span className="font-medium">{preview.invitedByName}</span>
+                          {" "}
+                          by <span className="font-medium">{preview.invitedByName}</span>
                         </>
                       ) : null}
                       .
@@ -227,7 +254,10 @@ export function Login({
                     Invited email: <span className="font-medium">{preview.email}</span>
                   </div>
                   <div>
-                    Expires: <span className="font-medium">{formatDateTime(preview.expiresAt)}</span>
+                    Expires:{" "}
+                    <span className="font-medium">
+                      {formatDateTime(preview.expiresAt)}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -258,7 +288,9 @@ export function Login({
                     autoComplete="email"
                     inputMode="email"
                     aria-invalid={Boolean(emailError)}
-                    className={emailError ? "border-red-300 focus:ring-red-500" : undefined}
+                    className={
+                      emailError ? "border-red-300 focus:ring-red-500" : undefined
+                    }
                     disabled={loading || previewLoading || inviteInvalid}
                   />
                 </div>
@@ -290,7 +322,9 @@ export function Login({
                     placeholder="••••••••"
                     autoComplete="current-password"
                     aria-invalid={Boolean(passwordError)}
-                    className={passwordError ? "border-red-300 focus:ring-red-500" : undefined}
+                    className={
+                      passwordError ? "border-red-300 focus:ring-red-500" : undefined
+                    }
                     disabled={loading || previewLoading || inviteInvalid}
                   />
                 </div>
@@ -322,16 +356,26 @@ export function Login({
                     : "Sign in"}
               </Button>
 
-              {onGoToSignupInvite && (
-                <button
-                  type="button"
-                  onClick={onGoToSignupInvite}
-                  className="w-full text-center text-xs text-gray-600 hover:text-gray-900"
-                >
-                  {inviteMode
-                    ? "Need a new account? Create one first"
-                    : "New here? Create your workspace"}
-                </button>
+              {inviteMode ? (
+                onGoToSignupInvite && (
+                  <button
+                    type="button"
+                    onClick={onGoToSignupInvite}
+                    className="w-full text-center text-xs text-gray-600 hover:text-gray-900"
+                  >
+                    Need a new account? Create one first
+                  </button>
+                )
+              ) : (
+                onGoToSignup && (
+                  <button
+                    type="button"
+                    onClick={onGoToSignup}
+                    className="w-full text-center text-xs text-gray-600 hover:text-gray-900"
+                  >
+                    New here? Create an account
+                  </button>
+                )
               )}
             </form>
           </Card>
