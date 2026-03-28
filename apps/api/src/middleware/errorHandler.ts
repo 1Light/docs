@@ -55,8 +55,21 @@ function sendError(res: Response, payload: { code: string; message: string; deta
  */
 export default function errorHandler(err: unknown, req: Request, res: Response, _next: NextFunction) {
   // Zod validation errors -> INVALID_REQUEST
-  if (err instanceof ZodError) {
-    const details = err.errors.map((e) => ({ path: e.path.join("."), message: e.message }));
+  if (
+    err instanceof ZodError ||
+    (typeof err === "object" &&
+      err !== null &&
+      "name" in err &&
+      (err as any).name === "ZodError" &&
+      "errors" in err &&
+      Array.isArray((err as any).errors))
+  ) {
+    const zodErr = err as ZodError;
+    const details = zodErr.errors.map((e) => ({
+      path: e.path.join("."),
+      message: e.message,
+    }));
+
     return sendError(res, {
       code: ERROR_CODES.INVALID_REQUEST,
       message: "Invalid request payload",

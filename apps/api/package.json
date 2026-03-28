@@ -10,6 +10,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "echo \"(optional) add eslint later\"",
     "test": "vitest run",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
     "test:watch": "vitest",
     "prisma:generate": "dotenv -e .env -- prisma generate --schema=./prisma/schema.prisma",
     "prisma:migrate": "dotenv -e .env -- prisma migrate dev --schema=./prisma/schema.prisma",
@@ -46,12 +48,14 @@
     "@types/node": "^22.19.15",
     "@types/node-cron": "^3.0.11",
     "@types/nodemailer": "^7.0.11",
+    "@types/supertest": "^7.2.0",
     "dotenv-cli": "^11.0.0",
     "prisma": "^5.22.0",
     "prisma-erd-generator": "^2.4.2",
     "supertest": "^7.0.0",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^2.0.5"
   }

@@ -10,6 +10,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "echo \"(optional) add eslint later\"",
     "test": "vitest run",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "echo \"No integration tests for realtime\"",
     "test:watch": "vitest"
   },
   "dependencies": {

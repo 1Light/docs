@@ -19,13 +19,13 @@
     "prisma:migrate": "pnpm -C apps/api prisma:migrate",
     "prisma:deploy": "pnpm -C apps/api prisma:deploy",
     "prisma:seed": "pnpm -C apps/api prisma:seed",
-    "test": "pnpm -r test",
-    "test:api": "pnpm -C apps/api test",
-    "test:web": "pnpm -C apps/web test",
-    "test:realtime": "pnpm -C apps/realtime test",
-    "test:ai": "pnpm -C apps/ai-service test"
+    "test:unit": "pnpm -r test:unit",
+    "test:integration": "pnpm -r test:integration",
+    "test:e2e": "playwright test",
+    "test:all": "pnpm test:unit && pnpm test:integration && pnpm test:e2e"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "dotenv-cli": "^11.0.0"
   }
 }
