@@ -197,9 +197,8 @@ describe("Realtime collaboration", () => {
   });
 
   afterEach(async () => {
-    await new Promise<void>((resolve) => io.close(() => resolve()));
-    await new Promise<void>((resolve, reject) => {
-      httpServer.close((err) => (err ? reject(err) : resolve()));
+    await new Promise<void>((resolve) => {
+      io.close(() => resolve());
     });
   });
 

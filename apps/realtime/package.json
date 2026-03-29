@@ -11,7 +11,7 @@
     "lint": "echo \"(optional) add eslint later\"",
     "test": "vitest run",
     "test:unit": "vitest run tests/unit",
-    "test:integration": "echo \"No integration tests for realtime\"",
+    "test:integration": "vitest run tests/integration",
     "test:watch": "vitest"
   },
   "dependencies": {
@@ -20,8 +20,8 @@
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.2",
     "socket.io": "^4.7.5",
-    "yjs": "^13.6.18",
     "y-protocols": "^1.0.7",
+    "yjs": "^13.6.18",
     "zod": "^3.23.8"
   },
   "devDependencies": {
@@ -29,6 +29,7 @@
     "@types/jsonwebtoken": "^9.0.6",
     "@types/node": "^22.19.15",
     "dotenv-cli": "^11.0.0",
+    "socket.io-client": "^4.8.3",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.9.3",
     "vitest": "^2.0.5"
