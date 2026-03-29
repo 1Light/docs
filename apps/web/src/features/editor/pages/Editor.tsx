@@ -264,8 +264,15 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
       await updateDocument(documentId, trimmedNext);
       lastSavedContentRef.current = trimmedNext;
       pendingSaveHtmlRef.current = null;
+      setBanner(null);
     } catch (e: any) {
-      setBanner(e?.message ?? "Failed to save document");
+      if (e?.status === 403) {
+        setBanner("You do not have permission to edit this document.");
+      } else if (e?.status === 401) {
+        setBanner("Session expired. Please log in again.");
+      } else {
+        setBanner(e?.message ?? "Failed to save document");
+      }
       pendingSaveHtmlRef.current = trimmedNext;
     } finally {
       saveInFlightRef.current = false;
@@ -414,7 +421,16 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
         await refreshCommentSummary({ maybeAutoOpen: true });
       } catch (e: any) {
         if (!alive) return;
-        setBanner(e?.message ?? "Failed to load document");
+
+        if (e?.status === 403) {
+          setBanner("You do not have access to this document.");
+        } else if (e?.status === 404) {
+          setBanner("Document not found.");
+        } else if (e?.status === 401) {
+          setBanner("Session expired. Please log in again.");
+        } else {
+          setBanner(e?.message ?? "Failed to load document");
+        }
       } finally {
         if (alive) setLoading(false);
       }
@@ -662,6 +678,12 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
           </div>
         )}
 
+        {docRole && !canEdit(docRole) && (
+          <div className="mb-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+            You have read-only access to this document.
+          </div>
+        )}
+
         <div className={`grid gap-4 ${showSidePanel ? "lg:grid-cols-12 lg:gap-6" : ""}`}>
           <div className={showSidePanel ? "lg:col-span-8" : ""}>
             <Card className="overflow-hidden">
@@ -669,7 +691,13 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
                 <EditorToolbar
                   editor={editorInstance}
                   documentId={documentId}
-                  disabled={loading || !isConnected || !editorInstance}
+                  disabled={
+                    loading ||
+                    !isConnected ||
+                    !editorInstance ||
+                    !docRole ||
+                    !["Editor", "Owner"].includes(docRole)
+                  }
                   role={docRole}
                   meId={me.id}
                 />
@@ -684,6 +712,11 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
                         disabled={bubbleDisabled || !editorInstance}
                         role={docRole}
                         onComment={() => {
+                          if (!docRole || !["Commenter", "Editor", "Owner"].includes(docRole)) {
+                            setBanner("You do not have permission to comment on this document.");
+                            return;
+                          }
+
                           const trimmed = selection.text.trim();
                           if (!trimmed) return;
 
@@ -697,6 +730,11 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
                           });
                         }}
                         onAI={() => {
+                          if (!docRole || !["Editor", "Owner"].includes(docRole)) {
+                            setBanner("You do not have permission to use AI on this document.");
+                            return;
+                          }
+
                           const trimmed = selection.text.trim();
                           if (!trimmed) return;
 
@@ -728,9 +766,7 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
                 }}
                 onJumpToAnchor={(anchor) => {
                   const matchingComment = openComments.find(
-                    (c) =>
-                      c.anchor?.start === anchor.start &&
-                      c.anchor?.end === anchor.end
+                    (c) => c.anchor?.start === anchor.start && c.anchor?.end === anchor.end
                   );
 
                   if (matchingComment) {

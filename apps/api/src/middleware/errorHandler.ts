@@ -3,10 +3,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { ZodError } from "zod";
 import { Prisma } from "@prisma/client";
-import { ERROR_CODES, type ApiError as SharedApiError } from "@repo/contracts";
-import { ApiError as ApiErrorDTO } from "@repo/contracts";
-// If your monorepo exposes packages/shared as "@repo/contracts", keep that.
-// Otherwise adjust imports (e.g. "../../packages/contracts/src/constants/errorCodes").
+import { ERROR_CODES } from "@repo/contracts";
 
 type KnownError = {
   code?: string;
@@ -18,21 +15,47 @@ type KnownError = {
 /**
  * Map our semantic error codes to HTTP status codes.
  */
-function mapErrorCodeToStatus(code?: string): number {
+function mapErrorCodeToStatus(code?: string, details?: unknown): number {
   switch (code) {
     case ERROR_CODES.UNAUTHORIZED:
       return 401;
+
     case ERROR_CODES.FORBIDDEN:
     case ERROR_CODES.AI_DISABLED_BY_POLICY:
       return 403;
+
     case ERROR_CODES.INVALID_REQUEST:
       return 400;
+
     case ERROR_CODES.NOT_FOUND:
       return 404;
+
+    case ERROR_CODES.CONFLICT:
+      return 409;
+
     case ERROR_CODES.AI_QUOTA_EXCEEDED:
       return 429;
-    case ERROR_CODES.AI_PROVIDER_UNAVAILABLE:
+
+    case ERROR_CODES.AI_PROVIDER_UNAVAILABLE: {
+      const d = details as
+        | {
+            reason?: string;
+            status?: number;
+          }
+        | undefined;
+
+      if (
+        d?.reason === "network" ||
+        d?.reason === "timeout" ||
+        d?.reason === "unreachable"
+      ) {
+        return 503;
+      }
+
       return 502;
+    }
+
+    case ERROR_CODES.INTERNAL_ERROR:
     default:
       return 500;
   }
@@ -41,8 +64,12 @@ function mapErrorCodeToStatus(code?: string): number {
 /**
  * Standardized JSON error response emitter.
  */
-function sendError(res: Response, payload: { code: string; message: string; details?: unknown }) {
-  const status = mapErrorCodeToStatus(payload.code);
+function sendError(
+  res: Response,
+  payload: { code: string; message: string; details?: unknown }
+) {
+  const status = mapErrorCodeToStatus(payload.code, payload.details);
+
   res.status(status).json({
     code: payload.code,
     message: payload.message,
@@ -53,7 +80,12 @@ function sendError(res: Response, payload: { code: string; message: string; deta
 /**
  * Express error handling middleware (final).
  */
-export default function errorHandler(err: unknown, req: Request, res: Response, _next: NextFunction) {
+export default function errorHandler(
+  err: unknown,
+  _req: Request,
+  res: Response,
+  _next: NextFunction
+) {
   // Zod validation errors -> INVALID_REQUEST
   if (
     err instanceof ZodError ||
@@ -79,7 +111,6 @@ export default function errorHandler(err: unknown, req: Request, res: Response, 
 
   // Prisma errors -> try to give meaningful feedback for common codes
   if (err instanceof Prisma.PrismaClientKnownRequestError) {
-    // Example: unique constraint violation
     if (err.code === "P2002") {
       return sendError(res, {
         code: ERROR_CODES.INVALID_REQUEST,
@@ -88,7 +119,6 @@ export default function errorHandler(err: unknown, req: Request, res: Response, 
       });
     }
 
-    // Fallback for other Prisma known errors
     return sendError(res, {
       code: ERROR_CODES.INTERNAL_ERROR,
       message: "Database error",
@@ -96,16 +126,25 @@ export default function errorHandler(err: unknown, req: Request, res: Response, 
     });
   }
 
-  // If user threw a structured ApiError from shared package (or similar)
-  if (typeof err === "object" && err !== null && "code" in err && "message" in (err as KnownError)) {
+  // Structured application errors
+  if (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    "message" in (err as KnownError)
+  ) {
     const ke = err as KnownError;
     const code = (ke.code as string) ?? ERROR_CODES.INTERNAL_ERROR;
     const message = ke.message ?? "Error";
-    return sendError(res, { code, message, details: ke.details });
+
+    return sendError(res, {
+      code,
+      message,
+      details: ke.details,
+    });
   }
 
   // Fallback: unknown / untyped error
-  // Log server-side for debugging (do NOT expose full stack in production)
   // eslint-disable-next-line no-console
   console.error("Unhandled error:", err);
 

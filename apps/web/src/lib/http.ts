@@ -3,6 +3,9 @@
  * Uses fetch and injects Authorization + x-org-id if available.
  */
 
+import { clearSession } from "../app/session";
+import { disconnectSocket } from "../features/realtime/socket";
+
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000/api";
 
@@ -27,6 +30,20 @@ type HttpOptions = {
 function normalizePath(path: string) {
   if (!path) return "/";
   return path.startsWith("/") ? path : `/${path}`;
+}
+
+function handleUnauthorized() {
+  try {
+    disconnectSocket();
+  } catch {
+    // ignore
+  }
+
+  clearSession();
+
+  if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+    window.location.replace("/login");
+  }
 }
 
 export async function http<T>(path: string, opts: HttpOptions = {}): Promise<T> {
@@ -62,10 +79,15 @@ export async function http<T>(path: string, opts: HttpOptions = {}): Promise<T> 
   }
 
   if (!res.ok) {
-    const message =
+    const backendMessage =
       (typeof data === "object" && data && (data.message || data.error?.message)) ||
       (typeof data === "string" && data) ||
-      `Request failed (${res.status})`;
+      null;
+
+    const message =
+      res.status === 401
+        ? backendMessage ?? "Session expired. Please log in again."
+        : backendMessage ?? `Request failed (${res.status})`;
 
     const err = new Error(message) as any;
     err.code =
@@ -75,6 +97,11 @@ export async function http<T>(path: string, opts: HttpOptions = {}): Promise<T> 
       undefined;
     err.status = res.status;
     err.url = url;
+
+    if (res.status === 401) {
+      handleUnauthorized();
+    }
+
     throw err;
   }
 

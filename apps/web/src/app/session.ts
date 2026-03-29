@@ -40,4 +40,5 @@ export function normalizeMe(u: any): MeUser {
 export function clearSession() {
   localStorage.removeItem("accessToken");
   localStorage.removeItem("me");
+  localStorage.removeItem("orgId");
 }

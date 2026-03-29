@@ -37,6 +37,14 @@ type ApplyJobParams = {
   finalText: string;
 };
 
+type NormalizedAIParameters = {
+  style?: string;
+  summaryStyle?: string;
+  language?: string;
+  formatStyle?: string;
+  applyMode: ApplyMode;
+};
+
 function apiError(
   code: (typeof ERROR_CODES)[keyof typeof ERROR_CODES],
   message: string,
@@ -63,12 +71,15 @@ async function callAIServiceRunJob(payload: {
       body: JSON.stringify(payload),
     });
   } catch {
-    throw apiError(ERROR_CODES.AI_PROVIDER_UNAVAILABLE, "AI service unavailable");
+    throw apiError(ERROR_CODES.AI_PROVIDER_UNAVAILABLE, "AI service unavailable", {
+      reason: "network",
+    });
   }
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw apiError(ERROR_CODES.AI_PROVIDER_UNAVAILABLE, "AI service error", {
+      reason: res.status === 502 || res.status === 503 ? "unreachable" : "upstream_error",
       status: res.status,
       body: text,
     });
@@ -76,7 +87,13 @@ async function callAIServiceRunJob(payload: {
 
   const data = (await res.json().catch(() => null)) as { result?: string } | null;
   if (!data?.result || typeof data.result !== "string") {
-    throw apiError(ERROR_CODES.AI_PROVIDER_UNAVAILABLE, "AI service returned invalid response");
+    throw apiError(
+      ERROR_CODES.AI_PROVIDER_UNAVAILABLE,
+      "AI service returned invalid response",
+      {
+        reason: "upstream_error",
+      }
+    );
   }
 
   return { result: data.result };
@@ -156,14 +173,8 @@ function normalizeParameters(
     formatStyle?: string;
     applyMode?: ApplyMode;
   }
-) {
-  const out: {
-    style?: string;
-    summaryStyle?: string;
-    language?: string;
-    formatStyle?: string;
-    applyMode: ApplyMode;
-  } = {
+): NormalizedAIParameters {
+  const out: NormalizedAIParameters = {
     applyMode: operation === "summarize" ? "insert_below" : "replace",
   };
 
@@ -328,6 +339,30 @@ function normalizeAppliedFinalText(
   return dedupeBrokenTail(text);
 }
 
+async function processAIJob(params: {
+  jobId: string;
+  operation: AIOperation;
+  selectedText: string;
+  parameters: NormalizedAIParameters;
+}) {
+  await aiJobRepo.updateStatus(params.jobId, AIJobStatus.running);
+
+  try {
+    const { result } = await callAIServiceRunJob({
+      jobId: params.jobId,
+      operation: params.operation,
+      selectedText: params.selectedText,
+      parameters: params.parameters,
+    });
+
+    await aiJobRepo.updateStatus(params.jobId, AIJobStatus.succeeded, { result });
+  } catch (err: any) {
+    await aiJobRepo.updateStatus(params.jobId, AIJobStatus.failed, {
+      errorMessage: err?.message ?? "AI job failed",
+    });
+  }
+}
+
 export const aiJobService = {
   async createJob(params: CreateJobParams) {
     const doc = await documentRepo.findById(params.documentId);
@@ -363,29 +398,19 @@ export const aiJobService = {
       basedOnVersionId: doc.headVersionId ?? null,
     });
 
-    await aiJobRepo.updateStatus(job.id, AIJobStatus.running);
+    void processAIJob({
+      jobId: job.id,
+      operation: params.operation,
+      selectedText,
+      parameters: normalizedParameters,
+    });
 
-    try {
-      const { result } = await callAIServiceRunJob({
-        jobId: job.id,
-        operation: params.operation,
-        selectedText,
-        parameters: normalizedParameters,
-      });
-
-      await aiJobRepo.updateStatus(job.id, AIJobStatus.succeeded, { result });
-    } catch (err: any) {
-      await aiJobRepo.updateStatus(job.id, AIJobStatus.failed, {
-        errorMessage: err?.message ?? "AI job failed",
-      });
-    }
-
-    const updated = await aiJobRepo.findById(job.id);
-    if (!updated) {
+    const created = await aiJobRepo.findById(job.id);
+    if (!created) {
       throw apiError(ERROR_CODES.INTERNAL_ERROR, "AI job missing after creation");
     }
 
-    return updated;
+    return created;
   },
 
   async getJob(jobId: string) {

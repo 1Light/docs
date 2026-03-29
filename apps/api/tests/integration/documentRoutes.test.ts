@@ -27,6 +27,9 @@ vi.mock("../../src/middleware/docRoleMiddleware", () => ({
 const mockCreateDocument = vi.fn();
 const mockListMyDocuments = vi.fn();
 const mockGetDocument = vi.fn();
+const mockUpdateDocument = vi.fn();
+const mockSoftDeleteDocument = vi.fn();
+const mockExportDocument = vi.fn();
 const mockResolveEffectiveRole = vi.fn();
 
 vi.mock("../../src/modules/documents/documentService", () => ({
@@ -34,8 +37,14 @@ vi.mock("../../src/modules/documents/documentService", () => ({
     createDocument: mockCreateDocument,
     listMyDocuments: mockListMyDocuments,
     getDocument: mockGetDocument,
-    updateDocument: vi.fn(),
-    softDeleteDocument: vi.fn(),
+    updateDocument: mockUpdateDocument,
+    softDeleteDocument: mockSoftDeleteDocument,
+  },
+}));
+
+vi.mock("../../src/modules/documents/exportService", () => ({
+  exportService: {
+    exportDocument: mockExportDocument,
   },
 }));
 
@@ -194,4 +203,111 @@ describe("Document routes", () => {
     expect(res.body).toHaveProperty("code");
     expect(res.body).toHaveProperty("message", "No access to this document");
   });
+
+  it("exports a document for an authorized user and returns a download reference", async () => {
+    mockResolveEffectiveRole.mockResolvedValueOnce("Editor");
+    mockExportDocument.mockResolvedValue({
+      downloadUrl: "http://localhost:4000/exports/doc-1_abcd1234.pdf",
+      format: "pdf",
+      filename: "doc-1_abcd1234.pdf",
+    });
+
+    const { createApp } = await import("../../src/app");
+    const app = createApp();
+
+    const res = await request(app)
+      .post("/api/documents/doc-1/export")
+      .set("Authorization", "Bearer fake-token")
+      .send({ format: "pdf" });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      downloadUrl: "http://localhost:4000/exports/doc-1_abcd1234.pdf",
+      format: "pdf",
+      filename: "doc-1_abcd1234.pdf",
+    });
+
+    expect(mockResolveEffectiveRole).toHaveBeenCalledWith({
+      documentId: "doc-1",
+      userId: "user-1",
+    });
+
+    expect(mockExportDocument).toHaveBeenCalledWith({
+      documentId: "doc-1",
+      format: "pdf",
+    });
+  });
+
+  it("blocks export when the user has no access", async () => {
+    mockResolveEffectiveRole.mockResolvedValueOnce(null);
+
+    const { createApp } = await import("../../src/app");
+    const app = createApp();
+
+    const res = await request(app)
+      .post("/api/documents/doc-1/export")
+      .set("Authorization", "Bearer fake-token")
+      .send({ format: "pdf" });
+
+    expect(res.status).toBe(403);
+    expect(res.body.code).toBeDefined();
+    expect(res.body.message).toBe("No access to this document");
+    expect(mockExportDocument).not.toHaveBeenCalled();
+  });
+
+  it("blocks export for viewers", async () => {
+    mockResolveEffectiveRole.mockResolvedValueOnce("Viewer");
+
+    const { createApp } = await import("../../src/app");
+    const app = createApp();
+
+    const res = await request(app)
+      .post("/api/documents/doc-1/export")
+      .set("Authorization", "Bearer fake-token")
+      .send({ format: "pdf" });
+
+    expect(res.status).toBe(403);
+    expect(res.body.code).toBeDefined();
+    expect(res.body.message).toBe("Only Editors and Owners can export this document");
+    expect(mockExportDocument).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid export format clearly", async () => {
+    const { createApp } = await import("../../src/app");
+    const app = createApp();
+
+    const res = await request(app)
+      .post("/api/documents/doc-1/export")
+      .set("Authorization", "Bearer fake-token")
+      .send({ format: "txt" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBeDefined();
+    expect(res.body.message).toBeDefined();
+    expect(mockExportDocument).not.toHaveBeenCalled();
+  });
+
+  it("returns an error when export fails instead of failing silently", async () => {
+    mockResolveEffectiveRole.mockResolvedValueOnce("Owner");
+    mockExportDocument.mockRejectedValue({
+      code: ERROR_CODES.INTERNAL_ERROR,
+      message: "Export generation failed",
+    });
+
+    const { createApp } = await import("../../src/app");
+    const app = createApp();
+
+    const res = await request(app)
+      .post("/api/documents/doc-1/export")
+      .set("Authorization", "Bearer fake-token")
+      .send({ format: "docx" });
+
+    expect(res.status).toBe(500);
+    expect(res.body.code).toBe(ERROR_CODES.INTERNAL_ERROR);
+    expect(res.body.message).toBe("Export generation failed");
+  });
 });
+
+const ERROR_CODES = {
+  INTERNAL_ERROR: "INTERNAL_ERROR",
+};

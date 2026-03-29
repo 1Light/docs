@@ -17,8 +17,12 @@ export type {
   MeResponseDTO,
 
   CreateDocumentRequestDTO,
-  DocumentResponseDTO,
+  CreateDocumentResponseDTO,
+  DocumentListItemDTO,
+  ListDocumentsResponseDTO,
+  GetDocumentResponseDTO,
   UpdateDocumentRequestDTO,
+  UpdateDocumentResponseDTO,
   DeleteDocumentResponseDTO,
   ExportDocumentRequestDTO,
   ExportDocumentResponseDTO,

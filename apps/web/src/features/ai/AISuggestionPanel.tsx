@@ -36,6 +36,8 @@ type Props = {
 };
 
 type Mode = "idle" | "running" | "ready" | "error";
+type NoticeKind = "info" | "error" | "conflict";
+
 type EnhanceStyle = "clearer" | "concise" | "professional" | "formal";
 type SummaryStyle = "short_paragraph" | "bullet_points";
 type ReformatStyle =
@@ -182,6 +184,10 @@ function shouldNormalizeAsBullets(
   );
 }
 
+function isConflictError(err: any) {
+  return err?.status === 409 || err?.code === "CONFLICT";
+}
+
 export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
   const [operation, setOperation] = useState<AIOperation>("enhance");
   const [enhanceStyle, setEnhanceStyle] = useState<EnhanceStyle>("clearer");
@@ -193,6 +199,7 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
   const [job, setJob] = useState<AIJob | null>(null);
   const [mode, setMode] = useState<Mode>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [noticeKind, setNoticeKind] = useState<NoticeKind>("info");
   const [finalText, setFinalText] = useState("");
 
   const pollTimerRef = useRef<number | null>(null);
@@ -219,7 +226,10 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
   );
 
   const isRunning = mode === "running";
-  const canApply = mode === "ready" && Boolean(job) && finalText.trim().length > 0;
+  const canApply =
+    (mode === "ready" || (mode === "error" && noticeKind === "conflict")) &&
+    Boolean(job) &&
+    finalText.trim().length > 0;
 
   const effectiveLanguage = useMemo(() => {
     const custom = customLanguage.trim();
@@ -276,6 +286,8 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
 
         if (latest.status === "succeeded") {
           setFinalText(normalizeSuggestionText(latest.result ?? ""));
+          setError(null);
+          setNoticeKind("info");
           setMode("ready");
           clearPollTimer();
           return;
@@ -283,12 +295,14 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
 
         if (latest.status === "failed") {
           setError(latest.error?.message ?? "AI job failed");
+          setNoticeKind("error");
           setMode("error");
           clearPollTimer();
           return;
         }
       } catch (e: any) {
         setError(e?.message ?? "Failed to poll AI job");
+        setNoticeKind("error");
         setMode("error");
         clearPollTimer();
       }
@@ -315,6 +329,7 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
 
     clearPollTimer();
     setError(null);
+    setNoticeKind("info");
     setMode("running");
     setJob(null);
     setFinalText("");
@@ -341,15 +356,19 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
 
       if (created.status === "succeeded") {
         setFinalText(normalizeSuggestionText(created.result ?? ""));
+        setError(null);
+        setNoticeKind("info");
         setMode("ready");
       } else if (created.status === "failed") {
         setError(created.error?.message ?? "AI job failed");
+        setNoticeKind("error");
         setMode("error");
       } else {
         setMode("running");
       }
     } catch (e: any) {
       setError(e?.message ?? "Failed to create AI job");
+      setNoticeKind("error");
       setMode("error");
     }
   }
@@ -383,10 +402,22 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
       clearPollTimer();
       setJob(null);
       setMode("idle");
+      setError(null);
+      setNoticeKind("info");
       setFinalText("");
       frozenSelectionRef.current = null;
     } catch (e: any) {
-      setError(e?.message ?? "Failed to apply suggestion");
+      if (isConflictError(e)) {
+        setError(
+          e?.message ??
+            "This suggestion is outdated because the document changed. Review it, copy anything you want, or generate a new suggestion."
+        );
+        setNoticeKind("conflict");
+      } else {
+        setError(e?.message ?? "Failed to apply suggestion");
+        setNoticeKind("error");
+      }
+
       setMode("error");
     }
   }
@@ -399,6 +430,7 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
   function reset() {
     clearPollTimer();
     setError(null);
+    setNoticeKind("info");
     setJob(null);
     setMode("idle");
     setFinalText("");
@@ -420,16 +452,24 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
             </Badge>
             <Badge
               variant={
-                mode === "running" ? "warning" : mode === "ready" ? "success" : "neutral"
+                mode === "running"
+                  ? "warning"
+                  : mode === "ready"
+                    ? "success"
+                    : mode === "error" && noticeKind === "conflict"
+                      ? "warning"
+                      : "neutral"
               }
             >
               {mode === "running"
                 ? "Running"
                 : mode === "ready"
                   ? "Ready"
-                  : mode === "error"
-                    ? "Error"
-                    : "Idle"}
+                  : mode === "error" && noticeKind === "conflict"
+                    ? "Outdated"
+                    : mode === "error"
+                      ? "Error"
+                      : "Idle"}
             </Badge>
           </div>
         </div>
@@ -653,7 +693,12 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
               {mode === "idle" && "Ready when you are."}
               {mode === "running" && "Working on it."}
               {mode === "ready" && "Review, edit, then accept or reject."}
-              {mode === "error" && "Fix the issue and try again."}
+              {mode === "error" &&
+                noticeKind === "conflict" &&
+                "This suggestion is outdated because the document changed. You can still review it, copy from it, edit it, or generate a new one."}
+              {mode === "error" &&
+                noticeKind !== "conflict" &&
+                "Fix the issue and try again."}
             </div>
 
             {(mode === "ready" || mode === "error") && (
@@ -675,6 +720,8 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
               <Badge variant="success">Editable</Badge>
             ) : mode === "running" ? (
               <Badge variant="warning">Generating</Badge>
+            ) : mode === "error" && noticeKind === "conflict" ? (
+              <Badge variant="warning">Outdated but editable</Badge>
             ) : (
               <Badge variant="neutral">Idle</Badge>
             )}
@@ -702,13 +749,27 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
           </div>
 
           {mode === "error" && (
-            <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-              <div className="font-medium text-red-900">Request failed</div>
+            <div
+              className={[
+                "mt-3 rounded-2xl p-3 text-sm",
+                noticeKind === "conflict"
+                  ? "border border-amber-200 bg-amber-50 text-amber-900"
+                  : "border border-red-200 bg-red-50 text-red-800",
+              ].join(" ")}
+            >
+              <div
+                className={[
+                  "font-medium",
+                  noticeKind === "conflict" ? "text-amber-950" : "text-red-900",
+                ].join(" ")}
+              >
+                {noticeKind === "conflict" ? "Suggestion is outdated" : "Request failed"}
+              </div>
               <div className="mt-1">{error ?? "Something went wrong"}</div>
             </div>
           )}
 
-          {mode === "ready" && (
+          {(mode === "ready" || (mode === "error" && noticeKind === "conflict")) && (
             <div className="mt-2 text-xs text-gray-500">
               You can edit the suggestion before accepting it.
             </div>

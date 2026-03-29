@@ -1,5 +1,3 @@
-// packages/contracts/src/types/dtos.ts
-
 import type { DocumentRole, OrgRole } from "../constants/roles";
 import type { ErrorCode } from "../constants/errorCodes";
 
@@ -7,7 +5,7 @@ import type { ErrorCode } from "../constants/errorCodes";
    Common
 ========================= */
 
-export type ID = string; // UUIDs in DB
+export type ID = string;
 export type ISODateString = string;
 
 /* =========================
@@ -27,6 +25,7 @@ export interface LoginResponseDTO {
     name: string;
     email: string;
     orgRole: OrgRole;
+    orgId?: ID | null;
   };
 }
 
@@ -35,6 +34,7 @@ export interface MeResponseDTO {
   name: string;
   email: string;
   orgRole: OrgRole;
+  orgId: ID | null;
 }
 
 /* =========================
@@ -45,18 +45,41 @@ export interface CreateDocumentRequestDTO {
   title: string;
 }
 
-export interface DocumentResponseDTO {
+export interface CreateDocumentResponseDTO {
   id: ID;
   title: string;
-  content: string;
   ownerId: ID;
-  versionHeadId: ID;
   createdAt: ISODateString;
   updatedAt: ISODateString;
 }
 
+export interface DocumentListItemDTO {
+  id: ID;
+  title: string;
+  ownerId: ID;
+  updatedAt: ISODateString;
+  role: DocumentRole | null;
+}
+
+export type ListDocumentsResponseDTO = DocumentListItemDTO[];
+
+export interface GetDocumentResponseDTO {
+  id: ID;
+  title: string;
+  content: string;
+  versionHeadId: ID | null;
+  updatedAt: ISODateString;
+  role: DocumentRole;
+}
+
 export interface UpdateDocumentRequestDTO {
   content: string;
+}
+
+export interface UpdateDocumentResponseDTO {
+  id: ID;
+  updatedAt: ISODateString;
+  versionHeadId: ID;
 }
 
 export interface DeleteDocumentResponseDTO {
@@ -64,11 +87,13 @@ export interface DeleteDocumentResponseDTO {
 }
 
 export interface ExportDocumentRequestDTO {
-  format: "pdf" | "docx" | "txt";
+  format: "pdf" | "docx";
 }
 
 export interface ExportDocumentResponseDTO {
   downloadUrl: string;
+  format: "pdf" | "docx";
+  filename: string;
 }
 
 /* =========================
@@ -94,7 +119,7 @@ export type ShareTargetType = "user" | "link";
 
 export interface ShareDocumentRequestDTO {
   targetType: ShareTargetType;
-  targetId?: ID; // required if targetType = "user"
+  targetId?: ID;
   role: DocumentRole;
 }
 
@@ -106,6 +131,7 @@ export interface PermissionDTO {
 
 export interface ShareDocumentResponseDTO {
   shareId: ID;
+  linkToken?: string;
 }
 
 /* =========================

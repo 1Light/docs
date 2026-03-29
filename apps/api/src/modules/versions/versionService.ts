@@ -168,8 +168,8 @@ export const versionService = {
 
     if (doc.headVersionId === versionId) {
       throw {
-        code: ERROR_CODES.INVALID_REQUEST,
-        message: "Cannot delete the current version",
+        code: ERROR_CODES.FORBIDDEN,
+        message: "Cannot delete the current (head) version",
       };
     }
 

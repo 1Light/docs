@@ -24,6 +24,15 @@ function assertSharableRole(role: DocumentRole) {
   }
 }
 
+function assertPrincipalType(value: unknown): asserts value is "user" | "link" {
+  if (value !== "user" && value !== "link") {
+    throw {
+      code: ERROR_CODES.INVALID_REQUEST,
+      message: "targetType/principalType must be 'user' or 'link'",
+    };
+  }
+}
+
 function canEditRole(role: DocumentRole | null | undefined) {
   return role === "Owner" || role === "Editor";
 }
@@ -322,8 +331,25 @@ export const documentController = {
 
       const documentId = req.params.id;
       const body = req.body as
-        | { targetType: "user"; targetId: string; role: DocumentRole }
-        | { targetType: "link"; role: DocumentRole };
+        | { targetType?: "user" | "link"; targetId?: string; role?: DocumentRole }
+        | undefined;
+
+      if (!body) {
+        throw {
+          code: ERROR_CODES.INVALID_REQUEST,
+          message: "Request body is required",
+        };
+      }
+
+      if (!body.role) {
+        throw {
+          code: ERROR_CODES.INVALID_REQUEST,
+          message: "role is required",
+        };
+      }
+
+      assertPrincipalType(body.targetType);
+      assertSharableRole(body.role);
 
       const doc = await prisma.document.findUnique({
         where: { id: documentId },
@@ -337,8 +363,6 @@ export const documentController = {
       if (doc.ownerId !== req.authUser.id) {
         throw { code: ERROR_CODES.FORBIDDEN, message: "Only Owner can share this document" };
       }
-
-      assertSharableRole(body.role);
 
       if (body.targetType === "user") {
         const rawTarget = (body.targetId ?? "").trim();
@@ -595,6 +619,7 @@ export const documentController = {
         };
       }
 
+      assertPrincipalType(principalType);
       assertSharableRole(role);
 
       const doc = await prisma.document.findUnique({
@@ -714,6 +739,8 @@ export const documentController = {
           message: "principalType and principalId required",
         };
       }
+
+      assertPrincipalType(principalType);
 
       const doc = await prisma.document.findUnique({
         where: { id: documentId },
