@@ -615,9 +615,14 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
                 </h1>
                 <span className="hidden sm:inline-flex">{connectionBadge}</span>
               </div>
-              <div className="mt-1 text-xs text-slate-500 sm:text-sm">
-                Signed in as {me.name}
-                {docRole ? ` • Role: ${docRole}` : ""}
+              <div className="mt-1 flex items-center gap-2 text-xs text-slate-500 sm:text-sm">
+                 <span>Signed in as {me.name}</span>
+
+                 {docRole && (
+                   <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+                    {docRole}
+                   </span>
+                 )}
               </div>
             </div>
           </div>
