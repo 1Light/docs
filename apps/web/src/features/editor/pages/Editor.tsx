@@ -599,44 +599,46 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
     );
   }, [collabExtensions, loading, isConnected, docRole]);
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="sticky top-0 z-20 border-b border-gray-200 bg-white/80 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-3">
+   return (
+    <div className="min-h-screen bg-slate-100">
+      <div className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 shadow-sm backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
+          <div className="flex min-w-0 items-center gap-3">
             <Button variant="secondary" size="sm" onClick={onBack}>
               Back
             </Button>
 
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="truncate text-sm font-semibold text-gray-900 sm:text-base">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="truncate text-base font-semibold text-slate-900 sm:text-lg">
                   {docTitle}
                 </h1>
                 <span className="hidden sm:inline-flex">{connectionBadge}</span>
               </div>
-              <div className="mt-0.5 text-xs text-gray-600">
+              <div className="mt-1 text-xs text-slate-500 sm:text-sm">
                 Signed in as {me.name}
                 {docRole ? ` • Role: ${docRole}` : ""}
               </div>
             </div>
           </div>
 
-          <PresenceLayer users={presenceUsers} />
+          <div className="shrink-0">
+            <PresenceLayer users={presenceUsers} />
+          </div>
         </div>
 
-        <div className="border-t border-gray-200 bg-white">
-          <div className="mx-auto flex max-w-6xl items-center gap-2 px-4 py-2 sm:px-6">
+        <div className="border-t border-slate-200 bg-slate-50/80">
+          <div className="mx-auto flex max-w-7xl items-center gap-2 px-4 py-2.5 sm:px-6 lg:px-8">
             <button
               type="button"
               onClick={() => {
                 setSidePanel((cur) => (cur === "versions" ? "none" : "versions"));
                 setPendingCommentAnchor(null);
               }}
-              className={`rounded-xl px-3 py-2 text-xs font-medium transition-colors ${
+              className={`rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${
                 sidePanel === "versions"
-                  ? "bg-gray-900 text-white"
-                  : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+                  ? "bg-slate-900 text-white shadow-sm"
+                  : "text-slate-700 hover:bg-white hover:text-slate-900"
               }`}
               aria-pressed={sidePanel === "versions"}
               title="Open version history"
@@ -651,10 +653,10 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
                   setSidePanel((cur) => (cur === "comments" ? "none" : "comments"));
                   setPendingCommentAnchor(null);
                 }}
-                className={`rounded-xl px-3 py-2 text-xs font-medium transition-colors ${
+                className={`rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${
                   sidePanel === "comments"
-                    ? "bg-gray-900 text-white"
-                    : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+                    ? "bg-slate-900 text-white shadow-sm"
+                    : "text-slate-700 hover:bg-white hover:text-slate-900"
                 }`}
                 aria-pressed={sidePanel === "comments"}
                 title="Toggle comments panel"
@@ -671,23 +673,23 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
         </div>
       </div>
 
-      <div className="mx-auto max-w-6xl px-4 py-5 sm:px-6 sm:py-6">
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         {banner && (
-          <div className="mb-3 rounded-xl border border-yellow-200 bg-yellow-50 px-3 py-2 text-sm text-yellow-900">
+          <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-sm">
             {banner}
           </div>
         )}
 
         {docRole && !canEdit(docRole) && (
-          <div className="mb-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+          <div className="mb-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm">
             You have read-only access to this document.
           </div>
         )}
 
-        <div className={`grid gap-4 ${showSidePanel ? "lg:grid-cols-12 lg:gap-6" : ""}`}>
+        <div className={`grid gap-5 ${showSidePanel ? "lg:grid-cols-12 lg:gap-6" : ""}`}>
           <div className={showSidePanel ? "lg:col-span-8" : ""}>
-            <Card className="overflow-hidden">
-              <div className="border-b border-gray-200 bg-white px-3 py-2 sm:px-6">
+            <Card className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-200 bg-white px-4 py-3 sm:px-6">
                 <EditorToolbar
                   editor={editorInstance}
                   documentId={documentId}
@@ -703,9 +705,9 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
                 />
               </div>
 
-              <div className="bg-gray-50">
-                <div className="mx-auto max-w-[860px] py-7">
-                  <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+              <div className="bg-slate-100/70">
+                <div className="mx-auto max-w-[920px] px-3 py-8 sm:px-6 sm:py-10">
+                  <div className="rounded-[28px] border border-slate-200 bg-white shadow-md">
                     <div className="relative">
                       <EditorBubbleMenu
                         editor={editorInstance}
@@ -753,87 +755,89 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
 
           {showSidePanel && (
             <div className="lg:col-span-4">
-              <EditorSidePanel
-                sidePanel={sidePanel}
-                documentId={documentId}
-                selection={selection}
-                pendingCommentAnchor={pendingCommentAnchor}
-                role={docRole}
-                meId={me.id}
-                onClose={() => {
-                  setSidePanel("none");
-                  setPendingCommentAnchor(null);
-                }}
-                onJumpToAnchor={(anchor) => {
-                  const matchingComment = openComments.find(
-                    (c) => c.anchor?.start === anchor.start && c.anchor?.end === anchor.end
-                  );
+              <div className="sticky top-28">
+                <EditorSidePanel
+                  sidePanel={sidePanel}
+                  documentId={documentId}
+                  selection={selection}
+                  pendingCommentAnchor={pendingCommentAnchor}
+                  role={docRole}
+                  meId={me.id}
+                  onClose={() => {
+                    setSidePanel("none");
+                    setPendingCommentAnchor(null);
+                  }}
+                  onJumpToAnchor={(anchor) => {
+                    const matchingComment = openComments.find(
+                      (c) => c.anchor?.start === anchor.start && c.anchor?.end === anchor.end
+                    );
 
-                  if (matchingComment) {
-                    jumpToResolvedCommentAnchor(matchingComment);
-                    return;
-                  }
+                    if (matchingComment) {
+                      jumpToResolvedCommentAnchor(matchingComment);
+                      return;
+                    }
 
-                  jumpToAnchor(anchor);
-                }}
-                isAnchorValid={isCommentAnchorValid}
-                onCommentsChanged={async () => {
-                  setPendingCommentAnchor(null);
-                  await refreshCommentSummary();
-                }}
-                onVersionReverted={async () => {
-                  const doc = await getDocument(documentId);
+                    jumpToAnchor(anchor);
+                  }}
+                  isAnchorValid={isCommentAnchorValid}
+                  onCommentsChanged={async () => {
+                    setPendingCommentAnchor(null);
+                    await refreshCommentSummary();
+                  }}
+                  onVersionReverted={async () => {
+                    const doc = await getDocument(documentId);
 
-                  const nextTitle =
-                    (doc as any)?.title ??
-                    (doc as any)?.name ??
-                    (doc as any)?.documentTitle ??
-                    "Untitled document";
+                    const nextTitle =
+                      (doc as any)?.title ??
+                      (doc as any)?.name ??
+                      (doc as any)?.documentTitle ??
+                      "Untitled document";
 
-                  const nextContent = (doc as any)?.content ?? "";
+                    const nextContent = (doc as any)?.content ?? "";
 
-                  setDocTitle(
-                    typeof nextTitle === "string" && nextTitle.trim().length > 0
-                      ? nextTitle.trim()
-                      : "Untitled document"
-                  );
+                    setDocTitle(
+                      typeof nextTitle === "string" && nextTitle.trim().length > 0
+                        ? nextTitle.trim()
+                        : "Untitled document"
+                    );
 
-                  applyServerContentWithoutAutosave(nextContent);
+                    applyServerContentWithoutAutosave(nextContent);
 
-                  setSidePanel("none");
-                  setBanner(null);
-                }}
-                onVersionDeleted={async () => {
-                  setBanner(null);
-                }}
-                onAIApplied={async ({
-                  finalText,
-                  applyMode,
-                  operation,
-                  targetSelection,
-                }) => {
-                  applyLiveAIResult({
+                    setSidePanel("none");
+                    setBanner(null);
+                  }}
+                  onVersionDeleted={async () => {
+                    setBanner(null);
+                  }}
+                  onAIApplied={async ({
                     finalText,
                     applyMode,
                     operation,
                     targetSelection,
-                  });
+                  }) => {
+                    applyLiveAIResult({
+                      finalText,
+                      applyMode,
+                      operation,
+                      targetSelection,
+                    });
 
-                  setSelection({
-                    start: 0,
-                    end: 0,
-                    text: "",
-                    pmFrom: 0,
-                    pmTo: 0,
-                  });
-                  setPendingCommentAnchor(null);
-                  setBanner(null);
-                }}
-              />
+                    setSelection({
+                      start: 0,
+                      end: 0,
+                      text: "",
+                      pmFrom: 0,
+                      pmTo: 0,
+                    });
+                    setPendingCommentAnchor(null);
+                    setBanner(null);
+                  }}
+                />
+              </div>
             </div>
           )}
         </div>
       </div>
     </div>
   );
-}
+  }
