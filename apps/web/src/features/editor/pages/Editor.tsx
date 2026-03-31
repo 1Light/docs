@@ -570,10 +570,21 @@ export function EditorPage({ documentId, onBack, onCurrentUserColorChange }: Pro
   }
 
   const connectionBadge = (
-    <Badge variant={isConnected ? "success" : "warning"}>
-      {isConnected ? "Live" : "Reconnecting"}
-    </Badge>
-  );
+   <span
+    className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${
+      isConnected
+        ? "bg-green-100 text-green-700"
+        : "bg-amber-100 text-amber-700"
+    }`}
+  >
+    <span
+      className={`h-2 w-2 rounded-full ${
+        isConnected ? "bg-green-500" : "bg-amber-500"
+      }`}
+    />
+    {isConnected ? "Connected" : "Reconnecting"}
+   </span>
+);
 
   const showSidePanel = sidePanel !== "none";
   const bubbleDisabled = loading;
