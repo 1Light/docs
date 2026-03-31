@@ -439,11 +439,11 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
 
   return (
     <Card className="w-full overflow-hidden">
-      <div className="border-b border-gray-200 bg-white px-4 py-3">
+      <div className="border-b border-slate-200 bg-slate-50/80 px-4 py-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-sm font-semibold text-gray-900">AI suggestions</div>
-            <div className="mt-1 text-xs text-gray-600">{activeOp.hint}</div>
+            <div className="text-sm font-semibold text-slate-900">AI suggestions</div>
+            <div className="mt-1 text-xs text-slate-500">{activeOp.hint}</div>
           </div>
 
           <div className="flex items-center gap-2">
@@ -476,7 +476,7 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
       </div>
 
       <div className="p-4">
-        <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3">
+        <div className="rounded-3xl border border-slate-200 bg-slate-50/80 p-4 shadow-sm">
           <div className="flex items-center justify-between gap-2">
             <div className="text-xs font-medium text-gray-900">Original selection</div>
             {canRun ? (
@@ -488,16 +488,16 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
             )}
           </div>
 
-          <div className="mt-2 max-h-28 overflow-auto rounded-xl border border-gray-200 bg-white p-3">
+          <div className="mt-2 max-h-28 overflow-auto rounded-2xl border border-slate-200 bg-white p-3">
             <div className="whitespace-pre-wrap break-words text-xs leading-relaxed text-gray-800">
               {canRun ? (selectionPreview || "Selection is empty.") : "No selection."}
             </div>
           </div>
 
           {canRun && (selection.text?.length ?? 0) > selectionPreview.length ? (
-            <div className="mt-2 text-xs text-gray-500">Preview is truncated for readability.</div>
+            <div className="mt-2 text-xs text-slate-500">Preview is truncated for readability.</div>
           ) : (
-            <div className="mt-2 text-xs text-gray-500">
+            <div className="mt-2 text-xs text-slate-500">
               Tip: shorter selections usually produce better results.
             </div>
           )}
@@ -509,7 +509,7 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
             <div className="mt-2">
               <select
                 className={[
-                  "w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 shadow-sm",
+                  "w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-gray-900 shadow-sm",
                   "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
                   "disabled:bg-gray-50 disabled:text-gray-500",
                 ].join(" ")}
@@ -524,7 +524,7 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
                 ))}
               </select>
             </div>
-            <div className="mt-2 text-xs leading-relaxed text-gray-500">{activeOp.hint}</div>
+            <div className="mt-2 text-xs leading-relaxed text-slate-500">{activeOp.hint}</div>
           </div>
 
           {operation === "enhance" && (
@@ -533,7 +533,7 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
               <div className="mt-2">
                 <select
                   className={[
-                    "w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 shadow-sm",
+                    "w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-gray-900 shadow-sm",
                     "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
                     "disabled:bg-gray-50 disabled:text-gray-500",
                   ].join(" ")}
@@ -548,7 +548,7 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
                   ))}
                 </select>
               </div>
-              <div className="mt-2 text-xs leading-relaxed text-gray-500">
+              <div className="mt-2 text-xs leading-relaxed text-slate-500">
                 Preserves meaning while improving wording.
               </div>
             </div>
@@ -560,7 +560,7 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
               <div className="mt-2">
                 <select
                   className={[
-                    "w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 shadow-sm",
+                    "w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-gray-900 shadow-sm",
                     "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
                     "disabled:bg-gray-50 disabled:text-gray-500",
                   ].join(" ")}
@@ -575,7 +575,7 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
                   ))}
                 </select>
               </div>
-              <div className="mt-2 text-xs leading-relaxed text-gray-500">
+              <div className="mt-2 text-xs leading-relaxed text-slate-500">
                 Summaries are inserted below the selected text by default.
               </div>
             </div>
@@ -588,7 +588,7 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
                 <div className="mt-2">
                   <select
                     className={[
-                      "w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 shadow-sm",
+                      "w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-gray-900 shadow-sm",
                       "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
                       "disabled:bg-gray-50 disabled:text-gray-500",
                     ].join(" ")}
@@ -617,7 +617,7 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
                     disabled={isRunning}
                   />
                 </div>
-                <div className="mt-2 text-xs leading-relaxed text-gray-500">
+                <div className="mt-2 text-xs leading-relaxed text-slate-500">
                   If filled, this overrides the selected language.
                 </div>
               </div>
@@ -630,7 +630,7 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
               <div className="mt-2">
                 <select
                   className={[
-                    "w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 shadow-sm",
+                    "w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-gray-900 shadow-sm",
                     "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
                     "disabled:bg-gray-50 disabled:text-gray-500",
                   ].join(" ")}
@@ -645,7 +645,7 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
                   ))}
                 </select>
               </div>
-              <div className="mt-2 text-xs leading-relaxed text-gray-500">
+              <div className="mt-2 text-xs leading-relaxed text-slate-500">
                 Changes structure and presentation while preserving meaning.
               </div>
             </div>
@@ -730,7 +730,7 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
           <div className="mt-2">
             <textarea
               className={[
-                "w-full min-h-[160px] rounded-2xl border border-gray-200 bg-white p-3 text-sm text-gray-900 shadow-sm",
+                "w-full min-h-[160px] rounded-2xl border border-slate-200 bg-white p-3 text-sm text-gray-900 shadow-sm",
                 "placeholder:text-gray-400",
                 "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
                 "disabled:bg-gray-50 disabled:text-gray-500",
@@ -770,7 +770,7 @@ export function AISuggestionPanel({ documentId, selection, onApplied }: Props) {
           )}
 
           {(mode === "ready" || (mode === "error" && noticeKind === "conflict")) && (
-            <div className="mt-2 text-xs text-gray-500">
+            <div className="mt-2 text-xs text-slate-500">
               You can edit the suggestion before accepting it.
             </div>
           )}
