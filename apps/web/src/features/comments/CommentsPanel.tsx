@@ -385,14 +385,14 @@ export function CommentsPanel({
 
   return (
     <Card className="w-full overflow-hidden">
-      <div className="border-b border-gray-200 bg-white px-4 py-3">
+      <div className="border-b border-slate-200 bg-slate-50/80 px-4 py-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-sm font-semibold text-gray-900">Comments</div>
-            <div className="mt-1 text-xs text-gray-600">
+            <div className="text-sm font-semibold text-slate-900">Comments</div>
+            <div className="mt-1 text-xs text-slate-500">
               Add comments, reply in threads, and jump to anchored selections.
             </div>
-            <div className="mt-1 text-[11px] text-gray-500">
+            <div className="mt-1 text-[11px] text-slate-500">
               Role: {role ?? "Unknown"}
               {!allowComment ? " • View-only" : allowModerate ? " • Can resolve" : " • Can comment"}
             </div>
@@ -434,7 +434,7 @@ export function CommentsPanel({
           </div>
         </div>
 
-        <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3">
+        <div className="rounded-3xl border border-slate-200 bg-slate-50/80 p-4 shadow-sm">
           <div className="flex items-center justify-between gap-2">
             <div className="text-xs font-medium text-gray-900">New comment</div>
             <div className="text-xs text-gray-600">
@@ -506,7 +506,7 @@ export function CommentsPanel({
               <CommentSkeleton />
             </div>
           ) : commentTree.length === 0 ? (
-            <div className="rounded-2xl border border-gray-200 bg-white p-4 text-sm text-gray-600">
+            <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500 shadow-sm">
               No comments in this view.
             </div>
           ) : (
@@ -613,7 +613,7 @@ function CommentCard({
   const quotePreview = clampPreview(c.quote ?? "", 180);
 
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+    <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -770,7 +770,7 @@ function CommentReplyBlock({ c }: { c: ReplyableComment }) {
   const hasReplies = Boolean(c.replies?.length);
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <div className="max-w-full truncate text-sm font-semibold text-gray-900">{author}</div>
         {c.status === "resolved" ? (
