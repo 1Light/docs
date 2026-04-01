@@ -218,6 +218,7 @@ export function AdminOverview({
 }: {
   policy: AIPolicy | null;
   users: AdminUser[];
+  orgAdminCount: number;
   onNavigate: (s: AdminSection) => void;
 }) {
   const orgAdminCount = useMemo(() => users.filter((u) => u.orgRole === "OrgAdmin").length, [users]);

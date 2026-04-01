@@ -1,6 +1,6 @@
 // apps/web/src/pages/Admin.tsx
 
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   createOrgInvite,
   getAIPolicy,
@@ -161,9 +161,14 @@ export function AdminPage({ onBack: _onBack }: Props) {
         </div>
 
         <div className="lg:col-span-9">
-          {section === "overview" && (
-            <AdminOverview policy={policy} users={users} onNavigate={setSection} />
-          )}
+{section === "overview" && (
+  <AdminOverview
+    policy={policy}
+    users={users}
+    orgAdminCount={orgAdminCount}
+    onNavigate={setSection}
+  />
+)}
 
           {section === "ai" && <AdminAIPolicy policy={policy} onSave={savePolicy} />}
 
