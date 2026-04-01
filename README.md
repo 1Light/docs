@@ -7,7 +7,6 @@ This repository contains a monorepo implementation of a real-time collaborative 
 ## Project Structure
 
 ```
-
 apps/
 api/         Core backend API
 ai-service/  AI job execution service
@@ -19,27 +18,26 @@ contracts/   Shared schemas, DTOs, and types
 
 e2e/
 tests/       End-to-end tests (Playwright)
-
-````
+```
 
 ---
 
 ## Prerequisites
 
-- Node.js
-- pnpm
-- PostgreSQL
-- Playwright browsers
+* Node.js
+* pnpm
+* Docker (for running PostgreSQL)
+* Playwright browsers
 
 ---
 
 ## Installation
 
-Run from the **repository root**:
+Run from the repository root:
 
 ```bash
 pnpm install
-````
+```
 
 ---
 
@@ -49,14 +47,20 @@ Each service uses environment variables.
 
 All required variables are defined in the `.env.example` file inside each application directory.
 
-You should create a `.env` file for each service based on its corresponding `.env.example`.
+Create `.env` files for each service:
+
+```bash
+cp apps/api/.env.example apps/api/.env
+cp apps/ai-service/.env.example apps/ai-service/.env
+cp apps/realtime/.env.example apps/realtime/.env
+cp apps/web/.env.example apps/web/.env
+```
 
 ### API (`apps/api/.env`)
 
-Example:
-
 ```env
-DATABASE_URL=postgresql://user:password@localhost:5432/db
+DATABASE_URL=postgresql://collab:collab@localhost:5432/collabdb?schema=public
+SHADOW_DATABASE_URL=postgresql://collab:collab@localhost:5432/collabdb_shadow?schema=public
 JWT_SECRET=your-secret-key
 WEB_ORIGIN=http://localhost:5173
 ```
@@ -83,21 +87,46 @@ VITE_API_URL=http://localhost:4000
 
 ## Quick Start
 
-### 1. Install dependencies (from root)
+### 1. Setup database (API)
+
+#### Start PostgreSQL (Docker - recommended)
+
+From the repository root:
 
 ```bash
-pnpm install
+docker-compose up -d
 ```
 
-### 2. Setup database (API)
+Ensure port `5432` is not already in use on your machine.
+
+---
+
+#### Create shadow database (required for Prisma migrations)
+
+```bash
+docker exec -it collab_postgres psql -U collab -c "CREATE DATABASE collabdb_shadow;"
+```
+
+---
+
+#### Run migrations
 
 ```bash
 cd apps/api
+
+# Generate Prisma client
 pnpm prisma generate
+
+# Apply migrations (creates all tables)
+pnpm prisma migrate dev
+
+# Seed database (optional)
 pnpm prisma:seed
 ```
 
-### 3. Start all services (from root)
+---
+
+### 2. Start all services (from root)
 
 ```bash
 pnpm dev
@@ -107,13 +136,13 @@ pnpm dev
 
 ## Testing
 
-The project supports **unit, integration, and end-to-end testing**.
+The project supports unit, integration, and end-to-end testing.
 
 ---
 
 ### Unit Tests
 
-#### Run within a specific app
+Run within a specific app:
 
 ```bash
 cd apps/api
@@ -135,9 +164,7 @@ cd apps/realtime
 pnpm test:unit
 ```
 
----
-
-#### Run all unit tests (from root)
+Run all unit tests (from root):
 
 ```bash
 pnpm test:unit
@@ -147,7 +174,7 @@ pnpm test:unit
 
 ### Integration Tests
 
-#### Run within a specific app
+Run within a specific app:
 
 ```bash
 cd apps/api
@@ -159,9 +186,7 @@ cd apps/web
 pnpm test:integration
 ```
 
----
-
-#### Run all integration tests (from root)
+Run all integration tests (from root):
 
 ```bash
 pnpm test:integration
@@ -171,7 +196,7 @@ pnpm test:integration
 
 ### End-to-End Tests
 
-Run from the **repository root**:
+Run from the repository root:
 
 ```bash
 pnpm test:e2e
@@ -189,8 +214,6 @@ pnpm test:all
 
 ## Testing Strategy
 
-The system uses a layered testing approach:
-
 ### Unit Testing
 
 * Validates isolated business logic
@@ -202,6 +225,8 @@ The system uses a layered testing approach:
   * realtime session management
 * No external dependencies
 
+---
+
 ### Integration Testing
 
 * Validates interaction between components
@@ -212,6 +237,8 @@ The system uses a layered testing approach:
   * document lifecycle (create, list, retrieve)
   * frontend components interacting with API modules
 * Uses mocked dependencies instead of a live database
+
+---
 
 ### End-to-End Testing
 
@@ -243,6 +270,8 @@ The system uses a layered testing approach:
 * Ananthicha Vimalkumar
 * Mazen Hany Abdelhamid
 * Nasir Adem Degu
+
+---
 
 ## License
 
